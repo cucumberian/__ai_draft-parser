@@ -1,0 +1,7 @@
+{
+  "name": "BluePrint Insight",
+  "description": "AI-powered technical drawing information extraction tool. Upload blueprints, define custom extraction templates, and export structured data in JSON format.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
