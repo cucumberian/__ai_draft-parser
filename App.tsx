@@ -224,6 +224,42 @@ const App: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const downloadResultsAsCsv = () => {
+    const completedFiles = state.files.filter(f => f.status === 'completed');
+    if (completedFiles.length === 0) return;
+
+    const headers = ['File Name', 'SHA256', ...activeTemplate.fields.map(f => f.label)];
+    
+    const escape = (val: any) => {
+      if (val === null || val === undefined) return '""';
+      let str = '';
+      if (Array.isArray(val)) {
+        str = val.join(', ');
+      } else {
+        str = val.toString();
+      }
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+
+    const rows = completedFiles.map(f => {
+      const rowData = [
+        escape(f.file.name),
+        escape(f.sha256),
+        ...activeTemplate.fields.map(field => escape(f.result?.[field.key]))
+      ];
+      return rowData.join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `extraction_results_${new Date().toISOString()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const updateSettings = (settings: AppSettings) => {
     setState(prev => ({ ...prev, settings }));
   };
@@ -318,28 +354,34 @@ const App: React.FC = () => {
                   </select>
                 </div>
               </div>
-              <div className="flex gap-3 w-full sm:w-auto">
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                 <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" />
-                <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-200 transition">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                   {lang === 'ru' ? 'Добавить чертеж' : 'Add Drawing'}
+                <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-200 transition text-sm">
+                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                   {lang === 'ru' ? 'Добавить' : 'Add'}
                 </button>
                 <button 
                   onClick={processAll}
                   disabled={globalLoading || state.files.length === 0}
-                  className="flex-1 sm:flex-initial px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:bg-slate-300 transition shadow-sm"
+                  className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:bg-slate-300 transition shadow-sm text-sm"
                 >
                   {globalLoading ? (
                     <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                   )}
                   {globalLoading ? t.processingBatch : (allCompleted ? t.rerunAll : t.startExtraction)}
                 </button>
-                <button onClick={downloadResultsAsJson} disabled={!state.files.some(f => f.status === 'completed')} className="flex-1 sm:flex-initial px-6 py-2.5 bg-slate-800 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-900 disabled:bg-slate-300 transition shadow-sm">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  {t.exportBatch}
-                </button>
+                <div className="flex gap-1">
+                  <button onClick={downloadResultsAsJson} disabled={!state.files.some(f => f.status === 'completed')} className="px-4 py-2 bg-slate-800 text-white rounded-l-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-900 disabled:bg-slate-300 transition shadow-sm text-sm border-r border-slate-700" title={t.exportBatch}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    JSON
+                  </button>
+                  <button onClick={downloadResultsAsCsv} disabled={!state.files.some(f => f.status === 'completed')} className="px-4 py-2 bg-slate-800 text-white rounded-r-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-900 disabled:bg-slate-300 transition shadow-sm text-sm" title={t.exportBatchCsv}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    CSV (Excel)
+                  </button>
+                </div>
               </div>
             </div>
 
