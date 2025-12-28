@@ -12,6 +12,7 @@ import DrawingCard from './components/DrawingCard';
 const STORAGE_KEY = 'blueprint_insight_state';
 
 const App: React.FC = () => {
+  // Persistence logic: load from localstorage or use defaults
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -19,9 +20,11 @@ const App: React.FC = () => {
         const parsed = JSON.parse(saved);
         return {
           ...parsed,
-          files: [], 
+          files: [], // Files are never persisted across sessions for security/size
           currentView: 'dashboard',
           currentLanguage: parsed.currentLanguage || 'ru',
+          templates: parsed.templates || [DEFAULT_TEMPLATE],
+          activeTemplateId: parsed.activeTemplateId || (parsed.templates?.[0]?.id || DEFAULT_TEMPLATE.id),
           settings: {
             provider: 'gemini',
             systemPrompt: DEFAULT_SYSTEM_PROMPT,
@@ -53,8 +56,16 @@ const App: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lang = state.currentLanguage;
-  const t = TRANSLATIONS[lang];
+  
+  // Create a localized dictionary for components
+  const t = useMemo(() => {
+    return Object.keys(TRANSLATIONS).reduce((acc, key) => {
+      acc[key] = TRANSLATIONS[key][lang] || key;
+      return acc;
+    }, {} as any);
+  }, [lang]);
 
+  // Effect to sync state to localstorage
   useEffect(() => {
     const { files, currentView, ...toSave } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -278,12 +289,12 @@ const App: React.FC = () => {
         templates={state.templates}
         activeTemplateId={state.activeTemplateId}
         onTemplateChange={(id) => setState(p => ({ ...p, activeTemplateId: id }))}
+        translations={t}
       />
 
       <main className="flex-1 container mx-auto p-4 md:p-8 flex flex-col">
         {state.currentView === 'dashboard' ? (
           <div className="flex-1 flex flex-col space-y-6">
-            {/* Toolbar */}
             <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border border-slate-200 gap-4 sticky top-[60px] md:top-[70px] z-30 shadow-md">
               <div className="flex items-center gap-3">
                 <div className="px-3 py-1 bg-slate-100 rounded-full text-slate-600 text-xs font-bold uppercase tracking-wider">
@@ -331,7 +342,6 @@ const App: React.FC = () => {
               </div>
             </div>
 
-            {/* List or Empty State */}
             <div 
               className={`flex-1 relative min-h-[400px] flex flex-col transition-all duration-300 ${isDragging ? 'bg-blue-50/20' : ''}`}
               onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
@@ -346,6 +356,7 @@ const App: React.FC = () => {
                       language={state.currentLanguage}
                       onProcess={processFile}
                       onRemove={removeFile}
+                      translations={t}
                     />
                   ))}
                 </div>
@@ -365,13 +376,36 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : state.currentView === 'templates' ? (
-          <TemplateManager templates={state.templates} activeTemplateId={state.activeTemplateId} language={lang} onSelect={(id) => setState(p => ({ ...p, activeTemplateId: id, currentView: 'dashboard' }))} onEdit={(t) => setIsEditingTemplate(t)} onDelete={deleteTemplate} onImport={(t) => setState(p => ({ ...p, templates: [...p.templates, t] }))} onCreate={createNewTemplate} />
+          <TemplateManager 
+            templates={state.templates} 
+            activeTemplateId={state.activeTemplateId} 
+            language={lang} 
+            onSelect={(id) => setState(p => ({ ...p, activeTemplateId: id, currentView: 'dashboard' }))} 
+            onEdit={(t) => setIsEditingTemplate(t)} 
+            onDelete={deleteTemplate} 
+            onImport={(t) => setState(p => ({ ...p, templates: [...p.templates, t] }))} 
+            onCreate={createNewTemplate}
+            translations={t}
+          />
         ) : (
-          <SettingsPage settings={state.settings} language={lang} onSave={updateSettings} />
+          <SettingsPage 
+            settings={state.settings} 
+            language={lang} 
+            onSave={updateSettings} 
+            translations={t}
+          />
         )}
       </main>
 
-      {isEditingTemplate && (<TemplateEditor template={isEditingTemplate} language={lang} onSave={saveEditedTemplate} onClose={() => setIsEditingTemplate(null)} />)}
+      {isEditingTemplate && (
+        <TemplateEditor 
+          template={isEditingTemplate} 
+          language={lang} 
+          onSave={saveEditedTemplate} 
+          onClose={() => setIsEditingTemplate(null)} 
+          translations={t}
+        />
+      )}
 
       <footer className="py-4 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-[11px]">
         <p>© {new Date().getFullYear()} BluePrint Insight - Advanced Engineering Intelligence Tool</p>

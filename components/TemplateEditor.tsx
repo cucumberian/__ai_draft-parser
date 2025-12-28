@@ -1,18 +1,17 @@
 
 import React, { useState } from 'react';
 import { Template, ExtractionField, FieldType, Language } from '../types';
-import { TRANSLATIONS } from '../constants';
 
 interface TemplateEditorProps {
   template: Template;
   language: Language;
   onSave: (template: Template) => void;
   onClose: () => void;
+  translations: any;
 }
 
-const TemplateEditor: React.FC<TemplateEditorProps> = ({ template, language, onSave, onClose }) => {
+const TemplateEditor: React.FC<TemplateEditorProps> = ({ template, language, onSave, onClose, translations: t }) => {
   const [editedTemplate, setEditedTemplate] = useState<Template>(template);
-  const t = TRANSLATIONS[language];
 
   const addField = () => {
     const newField: ExtractionField = {

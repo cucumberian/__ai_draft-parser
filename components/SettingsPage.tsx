@@ -1,18 +1,17 @@
 
 import React, { useState } from 'react';
 import { AppSettings, Language, AIProvider } from '../types';
-import { TRANSLATIONS } from '../constants';
 
 interface SettingsPageProps {
   settings: AppSettings;
   language: Language;
   onSave: (settings: AppSettings) => void;
+  translations: any;
 }
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ settings, language, onSave }) => {
+const SettingsPage: React.FC<SettingsPageProps> = ({ settings, language, onSave, translations: t }) => {
   const [editedSettings, setEditedSettings] = useState<AppSettings>(settings);
   const [showSavedMsg, setShowSavedMsg] = useState(false);
-  const t = TRANSLATIONS[language];
 
   const handleSave = () => {
     onSave(editedSettings);

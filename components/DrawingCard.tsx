@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { FileStatus, Template, Language } from '../types';
-import { TRANSLATIONS } from '../constants';
 
 interface DrawingCardProps {
   fileStatus: FileStatus;
@@ -9,6 +8,7 @@ interface DrawingCardProps {
   language: Language;
   onProcess: (id: string) => void;
   onRemove: (id: string) => void;
+  translations: any;
 }
 
 const DrawingCard: React.FC<DrawingCardProps> = ({
@@ -17,9 +17,8 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
   language,
   onProcess,
   onRemove,
+  translations: t,
 }) => {
-  const t = TRANSLATIONS[language];
-
   const handleCopy = () => {
     if (fileStatus.result) {
       const json = JSON.stringify(fileStatus.result, null, 2);

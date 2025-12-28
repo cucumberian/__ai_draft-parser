@@ -1,7 +1,6 @@
 
 import React, { useRef } from 'react';
 import { Template, Language } from '../types';
-import { TRANSLATIONS } from '../constants';
 
 interface TemplateManagerProps {
   templates: Template[];
@@ -12,6 +11,7 @@ interface TemplateManagerProps {
   onDelete: (id: string) => void;
   onImport: (template: Template) => void;
   onCreate: () => void;
+  translations: any;
 }
 
 const TemplateManager: React.FC<TemplateManagerProps> = ({ 
@@ -22,10 +22,10 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
   onEdit, 
   onDelete, 
   onImport,
-  onCreate 
+  onCreate,
+  translations: t
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const t = TRANSLATIONS[language];
 
   const handleExport = (template: Template) => {
     const data = JSON.stringify(template, null, 2);

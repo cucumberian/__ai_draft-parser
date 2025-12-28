@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { View, Language, Template } from '../types';
-import { TRANSLATIONS } from '../constants';
 
 interface HeaderProps {
   currentView: View;
@@ -11,6 +10,7 @@ interface HeaderProps {
   templates: Template[];
   activeTemplateId: string;
   onTemplateChange: (id: string) => void;
+  translations: any;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -21,9 +21,8 @@ const Header: React.FC<HeaderProps> = ({
   templates,
   activeTemplateId,
   onTemplateChange,
+  translations: t,
 }) => {
-  const t = TRANSLATIONS[currentLanguage];
-
   return (
     <header className="bg-slate-900 text-white py-2 px-4 shadow-lg sticky top-0 z-40">
       <div className="container mx-auto flex justify-between items-center gap-2">
