@@ -501,14 +501,8 @@ const App: React.FC = () => {
 
       {isEditingTemplate && (<TemplateEditor template={isEditingTemplate} language={lang} onSave={saveEditedTemplate} onClose={() => setIsEditingTemplate(null)} />)}
 
-      <footer className="p-8 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-sm">
-        <div className="flex flex-col items-center gap-4">
-          <div className="flex gap-6 opacity-60 grayscale hover:grayscale-0 transition">
-             <span className="font-bold tracking-widest text-white uppercase">{state.settings.provider} ENGINE</span>
-             <span className="font-bold tracking-widest text-white">VISION AI</span>
-          </div>
-          <p>© {new Date().getFullYear()} BluePrint Insight - Advanced Engineering Intelligence Tool</p>
-        </div>
+      <footer className="py-4 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-[11px]">
+        <p>© {new Date().getFullYear()} BluePrint Insight - Advanced Engineering Intelligence Tool</p>
       </footer>
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 8px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }`}</style>
     </div>
