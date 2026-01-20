@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { ExtractionField, FieldType, AppSettings } from "../types";
+import { ExtractionField, FieldType, AppSettings } from "../types.ts";
 
 export async function extractData(
   fileDataBase64: string,
@@ -121,9 +121,6 @@ async function extractFromOpenAI(
     return typeof content === 'string' ? JSON.parse(content) : content;
   } catch (e: any) {
     console.error("OpenAI Fetch Error:", e);
-    if (e instanceof TypeError && e.message === "Failed to fetch") {
-      throw new Error("Network error: Failed to connect to the API server. Check URL and connection.");
-    }
     throw e;
   }
 }

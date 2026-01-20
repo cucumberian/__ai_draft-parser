@@ -1,18 +1,17 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { AppState, FileStatus, Template, View, Language, AppSettings } from './types';
-import { DEFAULT_TEMPLATE, TRANSLATIONS, DEFAULT_SYSTEM_PROMPT } from './constants';
-import { extractData } from './services/extractionService';
-import TemplateEditor from './components/TemplateEditor';
-import TemplateManager from './components/TemplateManager';
-import SettingsPage from './components/SettingsPage';
-import Header from './components/Header';
-import DrawingCard from './components/DrawingCard';
+import { AppState, FileStatus, Template, Language, AppSettings } from './types.ts';
+import { DEFAULT_TEMPLATE, TRANSLATIONS, DEFAULT_SYSTEM_PROMPT } from './constants.ts';
+import { extractData } from './services/extractionService.ts';
+import TemplateEditor from './components/TemplateEditor.tsx';
+import TemplateManager from './components/TemplateManager.tsx';
+import SettingsPage from './components/SettingsPage.tsx';
+import Header from './components/Header.tsx';
+import DrawingCard from './components/DrawingCard.tsx';
 
 const STORAGE_KEY = 'blueprint_insight_state';
 
 const App: React.FC = () => {
-  // Persistence logic: load from localstorage or use defaults
   const [state, setState] = useState<AppState>(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
@@ -20,7 +19,7 @@ const App: React.FC = () => {
         const parsed = JSON.parse(saved);
         return {
           ...parsed,
-          files: [], // Files are never persisted across sessions for security/size
+          files: [], 
           currentView: 'dashboard',
           currentLanguage: parsed.currentLanguage || 'ru',
           templates: parsed.templates || [DEFAULT_TEMPLATE],
@@ -57,7 +56,6 @@ const App: React.FC = () => {
 
   const lang = state.currentLanguage;
   
-  // Create a localized dictionary for components
   const t = useMemo(() => {
     return Object.keys(TRANSLATIONS).reduce((acc, key) => {
       acc[key] = TRANSLATIONS[key][lang] || key;
@@ -65,7 +63,6 @@ const App: React.FC = () => {
     }, {} as any);
   }, [lang]);
 
-  // Effect to sync state to localstorage
   useEffect(() => {
     const { files, currentView, ...toSave } = state;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
@@ -83,8 +80,7 @@ const App: React.FC = () => {
     const arrayBuffer = await file.arrayBuffer();
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return hashHex;
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   };
 
   const handleFiles = async (filesList: FileList | null) => {
@@ -161,12 +157,7 @@ const App: React.FC = () => {
 
   const processAll = async () => {
     setGlobalLoading(true);
-    const hasPending = state.files.some(f => f.status === 'pending' || f.status === 'error');
-    const toProcess = state.files.filter(f => {
-      if (f.status === 'processing') return false;
-      if (hasPending) return f.status === 'pending' || f.status === 'error';
-      return true;
-    });
+    const toProcess = state.files.filter(f => f.status !== 'processing');
 
     for (const f of toProcess) {
       await processFile(f.id);
@@ -215,62 +206,6 @@ const App: React.FC = () => {
       fields: []
     };
     setIsEditingTemplate(newTemplate);
-  };
-
-  const downloadResultsAsJson = () => {
-    const results = state.files
-      .filter(f => f.status === 'completed')
-      .map(f => ({
-        fileName: f.file.name,
-        sha256: f.sha256,
-        extractedData: f.result
-      }));
-
-    if (results.length === 0) return;
-
-    const blob = new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `extraction_results_${new Date().toISOString()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadResultsAsCsv = () => {
-    const completedFiles = state.files.filter(f => f.status === 'completed');
-    if (completedFiles.length === 0) return;
-
-    const headers = ['File Name', 'SHA256', ...activeTemplate.fields.map(f => f.label)];
-    
-    const escape = (val: any) => {
-      if (val === null || val === undefined) return '""';
-      let str = '';
-      if (Array.isArray(val)) {
-        str = val.join(', ');
-      } else {
-        str = val.toString();
-      }
-      return `"${str.replace(/"/g, '""')}"`;
-    };
-
-    const rows = completedFiles.map(f => {
-      const rowData = [
-        escape(f.file.name),
-        escape(f.sha256),
-        ...activeTemplate.fields.map(field => escape(f.result?.[field.key]))
-      ];
-      return rowData.join(',');
-    });
-
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `extraction_results_${new Date().toISOString()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const updateSettings = (settings: AppSettings) => {
@@ -331,14 +266,6 @@ const App: React.FC = () => {
                   )}
                   {globalLoading ? t.processingBatch : (allCompleted ? t.rerunAll : t.startExtraction)}
                 </button>
-                <div className="flex gap-1">
-                  <button onClick={downloadResultsAsJson} disabled={!state.files.some(f => f.status === 'completed')} className="px-4 py-2 bg-slate-800 text-white rounded-l-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-900 disabled:bg-slate-300 transition shadow-sm text-sm border-r border-slate-700" title={t.exportBatch}>
-                    JSON
-                  </button>
-                  <button onClick={downloadResultsAsCsv} disabled={!state.files.some(f => f.status === 'completed')} className="px-4 py-2 bg-slate-800 text-white rounded-r-lg font-bold flex items-center justify-center gap-2 hover:bg-slate-900 disabled:bg-slate-300 transition shadow-sm text-sm" title={t.exportBatchCsv}>
-                    CSV
-                  </button>
-                </div>
               </div>
             </div>
 

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Template, ExtractionField, FieldType, Language } from '../types';
+import { Template, ExtractionField, FieldType, Language } from '../types.ts';
 
 interface TemplateEditorProps {
   template: Template;

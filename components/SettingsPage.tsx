@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { AppSettings, Language, AIProvider } from '../types';
+import { AppSettings, Language } from '../types.ts';
 
 interface SettingsPageProps {
   settings: AppSettings;
@@ -93,16 +93,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, language, onSave,
               onChange={(e) => updateGeneral('temperature', parseFloat(e.target.value))}
               className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
-            <div className="flex justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-              <span>Precise (0.0)</span>
-              <span>Creative (1.0)</span>
-            </div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Gemini Card */}
         <div 
           onClick={() => setEditedSettings(p => ({ ...p, provider: 'gemini' }))}
           className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${editedSettings.provider === 'gemini' ? 'border-blue-500 bg-blue-50/50 ring-4 ring-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
@@ -116,7 +111,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, language, onSave,
           <p className="text-sm text-slate-500">{t.geminiDescription}</p>
         </div>
 
-        {/* OpenAI Card */}
         <div 
           onClick={() => setEditedSettings(p => ({ ...p, provider: 'openai' }))}
           className={`p-6 rounded-2xl border-2 cursor-pointer transition-all ${editedSettings.provider === 'openai' ? 'border-blue-500 bg-blue-50/50 ring-4 ring-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}

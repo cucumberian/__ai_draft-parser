@@ -1,6 +1,6 @@
 
 import React, { useRef } from 'react';
-import { Template, Language } from '../types';
+import { Template, Language } from '../types.ts';
 
 interface TemplateManagerProps {
   templates: Template[];

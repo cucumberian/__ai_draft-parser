@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { FileStatus, Template, Language } from '../types';
+import { FileStatus, Template, Language } from '../types.ts';
 
 interface DrawingCardProps {
   fileStatus: FileStatus;

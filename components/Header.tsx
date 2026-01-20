@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { View, Language, Template } from '../types';
+import { View, Language, Template } from '../types.ts';
 
 interface HeaderProps {
   currentView: View;
