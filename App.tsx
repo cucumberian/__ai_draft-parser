@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AppState, FileStatus, Template, Language, AppSettings } from './types.ts';
 import { DEFAULT_TEMPLATE, TRANSLATIONS, DEFAULT_SYSTEM_PROMPT } from './constants.ts';
 import { extractData } from './services/extractionService.ts';
+import { pdfToImageBase64, pdfToImagePreview, isPdfFile } from './services/pdfService.ts';
 import TemplateEditor from './components/TemplateEditor.tsx';
 import TemplateManager from './components/TemplateManager.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -52,6 +53,7 @@ const App: React.FC = () => {
   const [isEditingTemplate, setIsEditingTemplate] = useState<Template | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileStatus | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const lang = state.currentLanguage;
@@ -77,10 +79,23 @@ const App: React.FC = () => {
   };
 
   const calculateHash = async (file: File): Promise<string> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = error => reject(error);
+    });
   };
 
   const handleFiles = async (filesList: FileList | null) => {
@@ -89,10 +104,26 @@ const App: React.FC = () => {
     const newFiles: FileStatus[] = [];
     for (const file of Array.from(filesList)) {
       const sha256 = await calculateHash(file);
+      let previewUrl: string;
+      let imageForModel: string | undefined;
+
+      try {
+        if (isPdfFile(file)) {
+          previewUrl = await pdfToImagePreview(file, 1.5);
+          imageForModel = await pdfToImageBase64(file, 2);
+        } else {
+          previewUrl = await fileToBase64(file);
+        }
+      } catch (err) {
+        console.error('Error processing file:', err);
+        previewUrl = '';
+      }
+
       newFiles.push({
         id: Math.random().toString(36).substr(2, 9),
         file,
-        previewUrl: URL.createObjectURL(file),
+        previewUrl,
+        imageForModel,
         status: 'pending',
         sha256
       });
@@ -124,18 +155,7 @@ const App: React.FC = () => {
 
   const removeFile = (id: string) => {
     setState(prev => {
-      const file = prev.files.find(f => f.id === id);
-      if (file) URL.revokeObjectURL(file.previewUrl);
       return { ...prev, files: prev.files.filter(f => f.id !== id) };
-    });
-  };
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
     });
   };
 
@@ -146,8 +166,19 @@ const App: React.FC = () => {
     updateFileStatus(id, { status: 'processing', error: undefined });
 
     try {
-      const base64 = await fileToBase64(fileStatus.file);
-      const result = await extractData(base64, activeTemplate.fields, fileStatus.file.type, state.settings);
+      let base64: string;
+      let mimeType: string;
+
+      if (isPdfFile(fileStatus.file)) {
+        base64 = fileStatus.imageForModel || await pdfToImageBase64(fileStatus.file, 2);
+        mimeType = 'image/png';
+      } else {
+        const dataUrl = await fileToBase64(fileStatus.file);
+        base64 = dataUrl.split(',')[1];
+        mimeType = fileStatus.file.type;
+      }
+
+      const result = await extractData(base64, activeTemplate.fields, mimeType, state.settings);
       updateFileStatus(id, { status: 'completed', result });
     } catch (err: any) {
       console.error(err);
@@ -283,6 +314,7 @@ const App: React.FC = () => {
                       language={state.currentLanguage}
                       onProcess={processFile}
                       onRemove={removeFile}
+                      onPreview={setPreviewFile}
                       translations={t}
                     />
                   ))}
@@ -332,6 +364,30 @@ const App: React.FC = () => {
           onClose={() => setIsEditingTemplate(null)} 
           translations={t}
         />
+      )}
+
+      {previewFile && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          <button 
+            onClick={() => setPreviewFile(null)}
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <div className="absolute top-4 left-4 text-white">
+            <p className="text-sm font-medium">{previewFile.file.name}</p>
+            <p className="text-xs text-white/60">{(previewFile.file.size / 1024).toFixed(1)} KB</p>
+          </div>
+          <img 
+            src={previewFile.previewUrl} 
+            alt={previewFile.file.name}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
 
       <footer className="py-4 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-[11px]">

@@ -27,6 +27,7 @@ export interface FileStatus {
   id: string;
   file: File;
   previewUrl: string;
+  imageForModel?: string;
   status: 'pending' | 'processing' | 'completed' | 'error';
   result?: any;
   error?: string;
@@ -36,7 +37,7 @@ export interface FileStatus {
 export type View = 'dashboard' | 'templates' | 'settings';
 export type Language = 'ru' | 'en';
 
-export type AIProvider = 'openai';
+export type AIProvider = 'openai' | 'ollama';
 
 export interface OpenAIConfig {
   baseUrl: string;
@@ -44,9 +45,15 @@ export interface OpenAIConfig {
   model: string;
 }
 
+export interface OllamaConfig {
+  baseUrl: string;
+  model: string;
+}
+
 export interface AppSettings {
   provider: AIProvider;
   openai?: OpenAIConfig;
+  ollama?: OllamaConfig;
   systemPrompt: string;
   temperature: number;
 }

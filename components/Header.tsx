@@ -24,11 +24,11 @@ const Header: React.FC<HeaderProps> = ({
   translations: t,
 }) => {
   return (
-    <header className="bg-slate-900 text-white py-2 px-4 shadow-lg sticky top-0 z-40">
+    <header className="bg-slate-900 text-white py-2 px-4 shadow-lg sticky top-0 z-40 drag-region">
       <div className="container mx-auto flex justify-between items-center gap-2">
         {/* Logo & Name */}
         <div 
-          className="flex items-center gap-2 cursor-pointer shrink-0" 
+          className="flex items-center gap-2 cursor-pointer shrink-0 no-drag" 
           onClick={() => onViewChange('dashboard')}
         >
           <div className="p-1.5 bg-blue-600 rounded-lg shadow-blue-900/20 shadow-md">
@@ -41,7 +41,7 @@ const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Navigation */}
-        <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
+        <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar no-drag">
           <button 
             onClick={() => onViewChange('dashboard')}
             className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap ${currentView === 'dashboard' ? 'bg-slate-800 text-white shadow-inner' : 'text-slate-400 hover:text-white'}`}
@@ -63,7 +63,7 @@ const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Controls */}
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0 no-drag">
           <button 
             onClick={onLanguageToggle}
             className="flex items-center gap-1.5 px-2 py-1.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg transition-all duration-200 group"

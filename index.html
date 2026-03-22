@@ -1,14 +1,33 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' blob: 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://fonts.googleapis.com https://fonts.gstatic.com; img-src 'self' blob: data: https:; media-src 'self' blob: data:;">
     <title>BluePrint Insight</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8fafc;
+            margin: 0;
+            padding: 0;
+        }
+        
+        /* Electron-specific: Add drag region for custom title bar */
+        .drag-region {
+            -webkit-app-region: drag;
+        }
+        
+        .no-drag {
+            -webkit-app-region: no-drag;
+        }
+        
+        /* Prevent text selection during drag */
+        .drag-region * {
+            user-select: none;
+        }
     </style>
 </head>
 <body>

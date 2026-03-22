@@ -1,6 +1,7 @@
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import electron from 'vite-plugin-electron';
 
 function moveScriptToBody(): Plugin {
   return {
@@ -20,7 +21,44 @@ function moveScriptToBody(): Plugin {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), moveScriptToBody()],
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
+  plugins: [
+    react(),
+    moveScriptToBody(),
+    electron([
+      {
+        entry: 'electron/main.ts',
+        onstart(args) {
+          args.startup();
+        },
+        vite: {
+          build: {
+            outDir: 'dist-electron',
+            rollupOptions: {
+              external: ['electron', 'http', 'https', 'path', 'url'],
+            },
+          },
+        },
+      },
+      {
+        entry: 'electron/preload.ts',
+        onstart(args) {
+          args.reload();
+        },
+        vite: {
+          build: {
+            outDir: 'dist-electron',
+            rollupOptions: {
+              external: ['electron'],
+            },
+          },
+        },
+      },
+    ]),
+  ],
   build: {
     cssCodeSplit: false,
     rollupOptions: {

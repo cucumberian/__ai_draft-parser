@@ -10,6 +10,38 @@ export async function extractData(
   return extractFromOpenAI(fileDataBase64, fields, mimeType, settings.openai!, settings.systemPrompt, settings.temperature);
 }
 
+async function apiFetch(url: string, options: RequestInit): Promise<Response> {
+  // Use Electron IPC if available, otherwise fallback to fetch
+  if (typeof window !== 'undefined' && (window as any).electronAPI?.apiRequest) {
+    const headers: Record<string, string> = {};
+    if (options.headers) {
+      if (options.headers instanceof Headers) {
+        options.headers.forEach((v, k) => { headers[k] = v; });
+      } else {
+        Object.assign(headers, options.headers);
+      }
+    }
+
+    const result = await (window as any).electronAPI.apiRequest({
+      url,
+      method: options.method || 'POST',
+      headers,
+      body: options.body as string,
+    });
+
+    return {
+      ok: result.ok,
+      status: result.status,
+      statusText: result.statusText,
+      text: async () => result.body,
+      json: async () => JSON.parse(result.body),
+    } as Response;
+  }
+
+  // Fallback to regular fetch
+  return fetch(url, options);
+}
+
 async function extractFromOpenAI(
   fileDataBase64: string,
   fields: ExtractionField[],
@@ -34,41 +66,74 @@ async function extractFromOpenAI(
   Required JSON structure keys and descriptions: ${JSON.stringify(schema)}
   Return ONLY valid JSON matching this structure. Do not include any other text.`;
 
+  const body = JSON.stringify({
+    model: config.model,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: base64Data } }
+        ]
+      }
+    ],
+    temperature: temperature,
+    max_tokens: 4096,
+  });
+
+  console.log('Sending request to:', url);
+  console.log('Model:', config.model);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+
+  if (config.apiKey) {
+    headers['Authorization'] = `Bearer ${config.apiKey}`;
+  }
+
+  let response: Response;
   try {
-    const response = await fetch(url, {
+    response = await apiFetch(url, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${config.apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              { type: 'image_url', image_url: { url: base64Data } }
-            ]
-          }
-        ],
-        response_format: { type: 'json_object' },
-        temperature: temperature
-      })
+      headers,
+      body,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error?.message || `HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-    if (!content) throw new Error("No content received from AI provider");
-
-    return typeof content === 'string' ? JSON.parse(content) : content;
   } catch (e: any) {
-    console.error("OpenAI Fetch Error:", e);
-    throw e;
+    console.error('Network error:', e);
+    throw new Error(`Не удалось подключиться к ${url}. Проверьте что сервер запущен.`);
+  }
+
+  console.log('Response status:', response.status);
+
+  const responseText = await response.text();
+  console.log('Response body:', responseText);
+
+  if (!response.ok) {
+    let errorMsg = responseText;
+    try {
+      const err = JSON.parse(responseText);
+      errorMsg = err.error?.message || err.message || responseText;
+    } catch {}
+    throw new Error(`Ошибка ${response.status}: ${errorMsg}`);
+  }
+
+  let data: any;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error('Некорректный ответ от сервера: ' + responseText.substring(0, 200));
+  }
+
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("Пустой ответ от модели");
+
+  let jsonStr = typeof content === 'string' ? content : JSON.stringify(content);
+  jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    throw new Error('Не удалось распарсить JSON из ответа: ' + jsonStr.substring(0, 200));
   }
 }
