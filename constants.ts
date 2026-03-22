@@ -47,6 +47,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   process: { ru: 'Запуск', en: 'Process' },
   rerun: { ru: 'Перезапуск', en: 'Re-run' },
   rerunAll: { ru: 'Перезапустить всё', en: 'Re-run All' },
+  cancelExtraction: { ru: 'Остановить', en: 'Stop' },
   working: { ru: 'Работаю...', en: 'Working...' },
   notFound: { ru: 'Не найдено', en: 'Not found' },
   yes: { ru: 'ДА', en: 'YES' },

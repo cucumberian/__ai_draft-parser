@@ -55,6 +55,8 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileStatus | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [isAborting, setIsAborting] = useState(false);
 
   const lang = state.currentLanguage;
   
@@ -159,13 +161,15 @@ const App: React.FC = () => {
     });
   };
 
-  const processFile = async (id: string) => {
+  const processFile = async (id: string, signal?: AbortSignal) => {
     const fileStatus = state.files.find(f => f.id === id);
     if (!fileStatus) return;
 
     updateFileStatus(id, { status: 'processing', error: undefined });
 
     try {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
       let base64: string;
       let mimeType: string;
 
@@ -178,22 +182,49 @@ const App: React.FC = () => {
         mimeType = fileStatus.file.type;
       }
 
-      const result = await extractData(base64, activeTemplate.fields, mimeType, state.settings);
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      const result = await extractData(base64, activeTemplate.fields, mimeType, state.settings, signal);
       updateFileStatus(id, { status: 'completed', result });
     } catch (err: any) {
-      console.error(err);
-      updateFileStatus(id, { status: 'error', error: err.message || 'Processing failed' });
+      if (err.name === 'AbortError') {
+        updateFileStatus(id, { status: 'pending' });
+      } else {
+        console.error(err);
+        updateFileStatus(id, { status: 'error', error: err.message || 'Processing failed' });
+      }
     }
   };
 
   const processAll = async () => {
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setIsAborting(false);
     setGlobalLoading(true);
+
     const toProcess = state.files.filter(f => f.status !== 'processing');
 
     for (const f of toProcess) {
-      await processFile(f.id);
+      if (controller.signal.aborted) break;
+      await processFile(f.id, controller.signal);
     }
+
     setGlobalLoading(false);
+    abortControllerRef.current = null;
+  };
+
+  const cancelProcessing = () => {
+    if (abortControllerRef.current) {
+      setIsAborting(true);
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setGlobalLoading(false);
+      // Reset any files stuck in processing state
+      state.files.filter(f => f.status === 'processing').forEach(f => {
+        updateFileStatus(f.id, { status: 'pending' });
+      });
+      setIsAborting(false);
+    }
   };
 
   const exportToJson = () => {
@@ -347,16 +378,16 @@ const App: React.FC = () => {
                    {lang === 'ru' ? 'Добавить' : 'Add'}
                 </button>
                 <button 
-                  onClick={processAll}
-                  disabled={globalLoading || state.files.length === 0}
-                  className="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-blue-700 disabled:bg-slate-300 transition shadow-sm text-sm"
+                  onClick={globalLoading ? cancelProcessing : processAll}
+                  disabled={!globalLoading && state.files.length === 0}
+                  className={`px-5 py-2 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-sm text-sm ${globalLoading ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300'}`}
                 >
                   {globalLoading ? (
-                    <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                   )}
-                  {globalLoading ? t.processingBatch : (allCompleted ? t.rerunAll : t.startExtraction)}
+                  {globalLoading ? t.cancelExtraction : (allCompleted ? t.rerunAll : t.startExtraction)}
                 </button>
                 {state.files.some(f => f.status === 'completed') && (
                   <>

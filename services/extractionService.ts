@@ -5,9 +5,10 @@ export async function extractData(
   fileDataBase64: string,
   fields: ExtractionField[],
   mimeType: string,
-  settings: AppSettings
+  settings: AppSettings,
+  signal?: AbortSignal
 ) {
-  return extractFromOpenAI(fileDataBase64, fields, mimeType, settings.openai!, settings.systemPrompt, settings.temperature);
+  return extractFromOpenAI(fileDataBase64, fields, mimeType, settings.openai!, settings.systemPrompt, settings.temperature, signal);
 }
 
 async function apiFetch(url: string, options: RequestInit): Promise<Response> {
@@ -48,7 +49,8 @@ async function extractFromOpenAI(
   mimeType: string,
   config: { baseUrl: string; apiKey: string; model: string },
   systemPrompt: string,
-  temperature: number
+  temperature: number,
+  signal?: AbortSignal
 ) {
   let url = config.baseUrl.trim();
   if (!url.endsWith('/chat/completions')) {
@@ -92,14 +94,21 @@ async function extractFromOpenAI(
     headers['Authorization'] = `Bearer ${config.apiKey}`;
   }
 
+  // Check if already aborted
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
   let response: Response;
   try {
     response = await apiFetch(url, {
       method: 'POST',
       headers,
       body,
+      signal,
     });
   } catch (e: any) {
+    if (e.name === 'AbortError') throw e;
     console.error('Network error:', e);
     throw new Error(`Не удалось подключиться к ${url}. Проверьте что сервер запущен.`);
   }
