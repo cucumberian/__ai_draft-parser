@@ -26,6 +26,13 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
   const [localResult, setLocalResult] = useState<any>(fileStatus.result || {});
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Update localResult when fileStatus.result changes (e.g., after extraction)
+  React.useEffect(() => {
+    if (fileStatus.result) {
+      setLocalResult(fileStatus.result);
+    }
+  }, [fileStatus.result]);
+
   const saveChanges = useCallback((newResult: any) => {
     if (onUpdateResult) {
       onUpdateResult(fileStatus.id, newResult);
@@ -88,7 +95,7 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col lg:flex-row transition hover:shadow-md ${isPending ? 'lg:h-auto' : 'lg:h-[500px] xl:h-[600px]'}`}>
       {/* Drawing Preview Area */}
-      <div className={`w-full lg:w-1/3 xl:w-1/4 bg-slate-50 flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-slate-200 relative shrink-0 ${isPending ? 'h-[160px] lg:h-auto' : 'h-[220px] sm:h-[280px] lg:h-full'}`}>
+      <div className={`w-full lg:w-[45%] xl:w-[40%] bg-slate-50 flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-slate-200 relative shrink-0 ${isPending ? 'h-[160px] lg:h-auto' : 'h-[220px] sm:h-[280px] lg:h-full'}`}>
         <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-white border border-slate-100 shadow-sm cursor-pointer" onClick={() => onPreview(fileStatus)}>
           <img src={fileStatus.previewUrl} alt={fileStatus.file.name} className="max-w-full max-h-full object-contain" />
           <button 

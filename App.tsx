@@ -316,9 +316,6 @@ const App: React.FC = () => {
         onViewChange={(view) => setState(p => ({ ...p, currentView: view }))}
         currentLanguage={state.currentLanguage}
         onLanguageToggle={toggleLanguage}
-        templates={state.templates}
-        activeTemplateId={state.activeTemplateId}
-        onTemplateChange={(id) => setState(p => ({ ...p, activeTemplateId: id }))}
         translations={t}
       />
 

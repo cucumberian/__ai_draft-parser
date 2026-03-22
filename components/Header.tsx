@@ -7,9 +7,6 @@ interface HeaderProps {
   onViewChange: (view: View) => void;
   currentLanguage: Language;
   onLanguageToggle: () => void;
-  templates: Template[];
-  activeTemplateId: string;
-  onTemplateChange: (id: string) => void;
   translations: any;
 }
 
@@ -18,9 +15,6 @@ const Header: React.FC<HeaderProps> = ({
   onViewChange,
   currentLanguage,
   onLanguageToggle,
-  templates,
-  activeTemplateId,
-  onTemplateChange,
   translations: t,
 }) => {
   return (
@@ -76,21 +70,6 @@ const Header: React.FC<HeaderProps> = ({
               {currentLanguage}
             </span>
           </button>
-
-          <div className="hidden lg:flex flex-col items-end border-l border-slate-700 pl-4">
-            <div className="text-[9px] text-slate-500 uppercase font-bold tracking-widest leading-none mb-1">{t.activePattern}</div>
-            <select 
-              value={activeTemplateId}
-              onChange={(e) => onTemplateChange(e.target.value)}
-              className="bg-transparent text-xs font-bold text-blue-400 focus:outline-none cursor-pointer hover:text-blue-300 transition-colors py-0 h-auto"
-            >
-              {templates.map(tmpl => (
-                <option key={tmpl.id} value={tmpl.id} className="bg-slate-900 text-white">
-                  {tmpl.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
       </div>
       <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
