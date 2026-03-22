@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { FileStatus, Template, Language } from '../types.ts';
 
 interface DrawingCardProps {
@@ -9,6 +9,7 @@ interface DrawingCardProps {
   onProcess: (id: string) => void;
   onRemove: (id: string) => void;
   onPreview: (fileStatus: FileStatus) => void;
+  onUpdateResult?: (id: string, result: any) => void;
   translations: any;
 }
 
@@ -19,8 +20,62 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
   onProcess,
   onRemove,
   onPreview,
+  onUpdateResult,
   translations: t,
 }) => {
+  const [localResult, setLocalResult] = useState<any>(fileStatus.result || {});
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const saveChanges = useCallback((newResult: any) => {
+    if (onUpdateResult) {
+      onUpdateResult(fileStatus.id, newResult);
+    }
+  }, [fileStatus.id, onUpdateResult]);
+
+  const handleValueChange = (key: string, value: any) => {
+    const newResult = { ...localResult, [key]: value };
+    setLocalResult(newResult);
+    
+    // Debounce save
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      saveChanges(newResult);
+    }, 500);
+  };
+
+  const handleArrayChange = (key: string, index: number, value: string) => {
+    const newArray = [...(localResult[key] || [])];
+    newArray[index] = value;
+    const newResult = { ...localResult, [key]: newArray };
+    setLocalResult(newResult);
+    
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = setTimeout(() => {
+      saveChanges(newResult);
+    }, 500);
+  };
+
+  const handleArrayRemove = (key: string, index: number) => {
+    const newArray = [...(localResult[key] || [])];
+    newArray.splice(index, 1);
+    const newResult = { ...localResult, [key]: newArray };
+    setLocalResult(newResult);
+    saveChanges(newResult);
+  };
+
+  const handleArrayAdd = (key: string) => {
+    const field = activeTemplate.fields.find(f => f.key === key);
+    const newValue = field?.type === 'ARRAY_NUMBER' ? 0 : '';
+    const newArray = [...(localResult[key] || []), newValue];
+    const newResult = { ...localResult, [key]: newArray };
+    setLocalResult(newResult);
+    saveChanges(newResult);
+  };
+
   const handleCopy = () => {
     if (fileStatus.result) {
       const json = JSON.stringify(fileStatus.result, null, 2);
@@ -83,31 +138,68 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
           </div>
         </div>
 
-        {/* Data Grid / Status Area */}
+        {/* Data Grid / Status Area - Always Editable */}
         <div className={`flex-1 overflow-auto bg-slate-50/50 rounded-xl border border-slate-100 p-4 sm:p-6 custom-scrollbar ${isPending ? 'min-h-[80px]' : 'min-h-[200px]'}`}>
           {fileStatus.status === 'completed' && fileStatus.result ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               {activeTemplate.fields.map(field => {
-                const value = fileStatus.result[field.key];
+                const value = localResult[field.key];
                 return (
                   <div key={field.id} className="bg-white p-3 rounded-lg border border-slate-200/60 shadow-sm">
                     <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">{field.label}</span>
                     <div className="text-sm font-semibold text-slate-700 break-words">
-                      {value === null || value === undefined ? (
-                        <span className="text-slate-300 italic">{t.notFound}</span>
-                      ) : Array.isArray(value) ? (
-                        value.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {value.map((v, i) => (
-                              <span key={i} className="px-1.5 py-0.5 bg-slate-100 rounded text-xs">{v}</span>
-                            ))}
-                          </div>
-                        ) : <span className="text-slate-300 italic">{t.notFound}</span>
-                      ) : typeof value === 'boolean' ? (
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${value ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {value ? t.yes : t.no}
-                        </span>
-                      ) : value.toString()}
+                      {field.type === 'BOOLEAN' ? (
+                        <select
+                          value={String(value ?? false)}
+                          onChange={(e) => handleValueChange(field.key, e.target.value === 'true')}
+                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                        >
+                          <option value="true">{t.yes}</option>
+                          <option value="false">{t.no}</option>
+                        </select>
+                      ) : field.type === 'ARRAY_STRING' || field.type === 'ARRAY_NUMBER' ? (
+                        <div className="space-y-1">
+                          {(Array.isArray(value) ? value : []).map((v: any, i: number) => (
+                            <div key={i} className="flex items-center gap-1">
+                              <input
+                                type={field.type === 'ARRAY_NUMBER' ? 'number' : 'text'}
+                                value={v}
+                                onChange={(e) => handleArrayChange(field.key, i, e.target.value)}
+                                className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                              <button
+                                onClick={() => handleArrayRemove(field.key, i)}
+                                className="p-1 text-red-500 hover:bg-red-50 rounded"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => handleArrayAdd(field.key)}
+                            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 mt-1"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                            {language === 'ru' ? 'Добавить' : 'Add'}
+                          </button>
+                        </div>
+                      ) : field.type === 'NUMBER' ? (
+                        <input
+                          type="number"
+                          value={value ?? ''}
+                          onChange={(e) => handleValueChange(field.key, e.target.value === '' ? null : Number(e.target.value))}
+                          placeholder={t.notFound}
+                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={value ?? ''}
+                          onChange={(e) => handleValueChange(field.key, e.target.value)}
+                          placeholder={t.notFound}
+                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      )}
                     </div>
                   </div>
                 );

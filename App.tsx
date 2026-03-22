@@ -196,6 +196,70 @@ const App: React.FC = () => {
     setGlobalLoading(false);
   };
 
+  const exportToJson = () => {
+    const completedFiles = state.files.filter(f => f.status === 'completed' && f.result);
+    if (completedFiles.length === 0) return;
+    
+    const exportData = completedFiles.map(f => ({
+      filename: f.file.name,
+      ...f.result
+    }));
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `blueprint-data-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToCsv = () => {
+    const completedFiles = state.files.filter(f => f.status === 'completed' && f.result);
+    if (completedFiles.length === 0) return;
+
+    const allKeys = new Set<string>();
+    completedFiles.forEach(f => {
+      if (f.result) Object.keys(f.result).forEach(k => allKeys.add(k));
+    });
+    const headers = ['filename', ...Array.from(allKeys)];
+
+    const rows = completedFiles.map(f => {
+      const row: Record<string, string> = { filename: f.file.name };
+      allKeys.forEach(key => {
+        const value = f.result?.[key];
+        if (Array.isArray(value)) {
+          row[key] = value.join('; ');
+        } else if (value === null || value === undefined) {
+          row[key] = '';
+        } else {
+          row[key] = String(value);
+        }
+      });
+      return row;
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => headers.map(h => {
+        const val = row[h] || '';
+        return `"${val.replace(/"/g, '""')}"`;
+      }).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `blueprint-data-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const updateFileResult = (id: string, newResult: any) => {
+    updateFileStatus(id, { result: newResult });
+  };
+
   const updateFileStatus = (id: string, updates: Partial<FileStatus>) => {
     setState(prev => ({
       ...prev,
@@ -297,6 +361,24 @@ const App: React.FC = () => {
                   )}
                   {globalLoading ? t.processingBatch : (allCompleted ? t.rerunAll : t.startExtraction)}
                 </button>
+                {state.files.some(f => f.status === 'completed') && (
+                  <>
+                    <button 
+                      onClick={exportToJson}
+                      className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-bold flex items-center gap-2 hover:bg-green-200 transition text-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      JSON
+                    </button>
+                    <button 
+                      onClick={exportToCsv}
+                      className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-200 transition text-sm"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      CSV
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -315,6 +397,7 @@ const App: React.FC = () => {
                       onProcess={processFile}
                       onRemove={removeFile}
                       onPreview={setPreviewFile}
+                      onUpdateResult={updateFileResult}
                       translations={t}
                     />
                   ))}
