@@ -1,5 +1,4 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
 import { ExtractionField, FieldType, AppSettings } from "../types.ts";
 
 export async function extractData(
@@ -8,58 +7,7 @@ export async function extractData(
   mimeType: string,
   settings: AppSettings
 ) {
-  if (settings.provider === 'openai' && settings.openai) {
-    return extractFromOpenAI(fileDataBase64, fields, mimeType, settings.openai, settings.systemPrompt, settings.temperature);
-  }
-  return extractFromGemini(fileDataBase64, fields, mimeType, settings.systemPrompt, settings.temperature);
-}
-
-async function extractFromGemini(
-  fileDataBase64: string,
-  fields: ExtractionField[],
-  mimeType: string,
-  systemPrompt: string,
-  temperature: number
-) {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) throw new Error("API Key is missing");
-
-  const ai = new GoogleGenAI({ apiKey });
-  const properties: Record<string, any> = {};
-  const required: string[] = [];
-
-  fields.forEach(field => {
-    required.push(field.key);
-    switch (field.type) {
-      case FieldType.STRING: properties[field.key] = { type: Type.STRING, description: field.description }; break;
-      case FieldType.NUMBER: properties[field.key] = { type: Type.NUMBER, description: field.description }; break;
-      case FieldType.BOOLEAN: properties[field.key] = { type: Type.BOOLEAN, description: field.description }; break;
-      case FieldType.ARRAY_STRING: properties[field.key] = { type: Type.ARRAY, items: { type: Type.STRING }, description: field.description }; break;
-      case FieldType.ARRAY_NUMBER: properties[field.key] = { type: Type.ARRAY, items: { type: Type.NUMBER }, description: field.description }; break;
-    }
-  });
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: {
-        parts: [
-          { inlineData: { mimeType, data: fileDataBase64.split(',')[1] || fileDataBase64 } },
-          { text: systemPrompt },
-        ],
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: { type: Type.OBJECT, properties, required },
-        temperature: temperature,
-      },
-    });
-
-    return JSON.parse(response.text);
-  } catch (e: any) {
-    console.error("Gemini Extraction Error:", e);
-    throw e;
-  }
+  return extractFromOpenAI(fileDataBase64, fields, mimeType, settings.openai!, settings.systemPrompt, settings.temperature);
 }
 
 async function extractFromOpenAI(
@@ -74,9 +22,9 @@ async function extractFromOpenAI(
   if (!url.endsWith('/chat/completions')) {
     url = `${url.replace(/\/+$/, '')}/chat/completions`;
   }
-  
+
   const base64Data = fileDataBase64.includes(',') ? fileDataBase64 : `data:${mimeType};base64,${fileDataBase64}`;
-  
+
   const schema: Record<string, any> = {};
   fields.forEach(f => {
     schema[f.key] = f.description;
@@ -117,7 +65,7 @@ async function extractFromOpenAI(
     const data = await response.json();
     const content = data.choices[0]?.message?.content;
     if (!content) throw new Error("No content received from AI provider");
-    
+
     return typeof content === 'string' ? JSON.parse(content) : content;
   } catch (e: any) {
     console.error("OpenAI Fetch Error:", e);

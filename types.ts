@@ -36,7 +36,7 @@ export interface FileStatus {
 export type View = 'dashboard' | 'templates' | 'settings';
 export type Language = 'ru' | 'en';
 
-export type AIProvider = 'gemini' | 'openai';
+export type AIProvider = 'openai';
 
 export interface OpenAIConfig {
   baseUrl: string;

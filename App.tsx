@@ -25,7 +25,7 @@ const App: React.FC = () => {
           templates: parsed.templates || [DEFAULT_TEMPLATE],
           activeTemplateId: parsed.activeTemplateId || (parsed.templates?.[0]?.id || DEFAULT_TEMPLATE.id),
           settings: {
-            provider: 'gemini',
+            provider: 'openai',
             systemPrompt: DEFAULT_SYSTEM_PROMPT,
             temperature: 0.1,
             ...parsed.settings
@@ -41,8 +41,8 @@ const App: React.FC = () => {
       files: [],
       currentView: 'dashboard',
       currentLanguage: 'ru',
-      settings: { 
-        provider: 'gemini',
+      settings: {
+        provider: 'openai',
         systemPrompt: DEFAULT_SYSTEM_PROMPT,
         temperature: 0.1
       }

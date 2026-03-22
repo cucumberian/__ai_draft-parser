@@ -72,8 +72,6 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   active: { ru: 'Активен', en: 'Active' },
   noDescription: { ru: 'Описание отсутствует.', en: 'No description provided.' },
   apiSettings: { ru: 'Настройки API', en: 'API Settings' },
-  providerSelect: { ru: 'Выберите провайдера AI', en: 'Select AI Provider' },
-  geminiDescription: { ru: 'Использовать встроенный Google Gemini API (бесплатно до определенных лимитов).', en: 'Use built-in Google Gemini API (free within certain limits).' },
   openaiDescription: { ru: 'Использовать OpenAI-совместимый API (например, vLLM, Ollama или сам OpenAI).', en: 'Use OpenAI-compatible API (e.g., vLLM, Ollama, or OpenAI itself).' },
   baseUrl: { ru: 'Базовый URL (Base URL)', en: 'Base URL' },
   apiKey: { ru: 'Ключ API (API Key)', en: 'API Key' },

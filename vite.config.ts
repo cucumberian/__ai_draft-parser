@@ -1,23 +1,38 @@
 import path from 'path';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
-    return {
-      server: {
-        port: 3000,
-        host: '0.0.0.0',
-      },
-      plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
-      resolve: {
-        alias: {
-          '@': path.resolve(__dirname, '.'),
-        }
+function moveScriptToBody(): Plugin {
+  return {
+    name: 'move-script-to-body',
+    apply: 'build',
+    transformIndexHtml(html) {
+      const match = html.match(/<script[^>]*type="module"[^>]*src="[^"]*"[^>]*><\/script>/);
+      if (match) {
+        const cleaned = match[0].replace(/ type="module"/g, '').replace(/ crossorigin/g, '');
+        html = html.replace(match[0], '');
+        html = html.replace('</body>', `${cleaned}</body>`);
       }
-    };
+      return html;
+    }
+  };
+}
+
+export default defineConfig({
+  base: './',
+  plugins: [react(), moveScriptToBody()],
+  build: {
+    cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        format: 'iife',
+        inlineDynamicImports: true,
+      }
+    }
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, '.'),
+    }
+  }
 });
