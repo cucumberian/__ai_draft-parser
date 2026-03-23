@@ -5,6 +5,7 @@
   "description": "BluePrint Insight - Advanced Engineering Intelligence Tool",
   "type": "module",
   "main": "./dist-electron/main.js",
+  "author": "BluePrint Insight Team",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -39,24 +40,18 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "node_modules/pdfjs-dist/build/pdf.worker.mjs"
     ],
     "mac": {
       "target": "dmg",
       "icon": "resources/icon.icns"
     },
     "win": {
-      "target": "nsis",
-      "icon": "resources/icon.ico"
+      "target": "portable"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "resources/icon.png"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "target": "AppImage"
     }
   }
 }

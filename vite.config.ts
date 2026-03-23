@@ -2,6 +2,20 @@ import path from 'path';
 import { defineConfig, Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import electron from 'vite-plugin-electron';
+import fs from 'fs';
+
+function copyPdfWorker(): Plugin {
+  return {
+    name: 'copy-pdf-worker',
+    apply: 'build',
+    closeBundle() {
+      const src = path.resolve(__dirname, 'node_modules/pdfjs-dist/build/pdf.worker.mjs');
+      const dest = path.resolve(__dirname, 'dist/pdf.worker.mjs');
+      fs.copyFileSync(src, dest);
+      console.log('Copied pdf.worker.mjs to dist');
+    }
+  };
+}
 
 function moveScriptToBody(): Plugin {
   return {
@@ -27,6 +41,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    copyPdfWorker(),
     moveScriptToBody(),
     electron([
       {
