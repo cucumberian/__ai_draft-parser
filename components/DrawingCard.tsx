@@ -90,13 +90,12 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
     }
   };
 
-  const isPending = fileStatus.status === 'pending';
   const hasPreview = !!fileStatus.previewUrl;
 
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col lg:flex-row transition hover:shadow-md ${isPending ? 'lg:h-auto' : 'lg:h-[500px] xl:h-[600px]'}`}>
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col lg:flex-row transition hover:shadow-md lg:h-[500px] xl:h-[600px]">
       {/* Drawing Preview Area */}
-      <div className={`w-full lg:w-[45%] xl:w-[40%] bg-slate-50 flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-slate-200 relative shrink-0 ${isPending ? 'h-[160px] lg:h-auto' : 'h-[220px] sm:h-[280px] lg:h-full'}`}>
+      <div className="w-full lg:w-[45%] xl:w-[40%] bg-slate-50 flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-slate-200 relative shrink-0 h-[220px] sm:h-[280px] lg:h-full">
         {hasPreview ? (
           <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-white border border-slate-100 shadow-sm cursor-pointer" onClick={() => onPreview(fileStatus)}>
             <img src={fileStatus.previewUrl} alt={fileStatus.file.name} className="max-w-full max-h-full object-contain" />
@@ -163,73 +162,8 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
         </div>
 
         {/* Data Grid / Status Area - Always Editable */}
-        <div className={`flex-1 overflow-auto bg-slate-50/50 rounded-xl border border-slate-100 p-4 sm:p-6 custom-scrollbar ${isPending ? 'min-h-[80px]' : 'min-h-[200px]'}`}>
-          {fileStatus.status === 'completed' && fileStatus.result ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-              {activeTemplate.fields.map(field => {
-                const value = localResult[field.key];
-                return (
-                  <div key={field.id} className="bg-white p-3 rounded-lg border border-slate-200/60 shadow-sm">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">{field.label}</span>
-                    <div className="text-sm font-semibold text-slate-700 break-words">
-                      {field.type === 'BOOLEAN' ? (
-                        <select
-                          value={String(value ?? false)}
-                          onChange={(e) => handleValueChange(field.key, e.target.value === 'true')}
-                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                        >
-                          <option value="true">{t.yes}</option>
-                          <option value="false">{t.no}</option>
-                        </select>
-                      ) : field.type === 'ARRAY_STRING' || field.type === 'ARRAY_NUMBER' ? (
-                        <div className="space-y-1">
-                          {(Array.isArray(value) ? value : []).map((v: any, i: number) => (
-                            <div key={i} className="flex items-center gap-1">
-                              <input
-                                type={field.type === 'ARRAY_NUMBER' ? 'number' : 'text'}
-                                value={v}
-                                onChange={(e) => handleArrayChange(field.key, i, e.target.value)}
-                                className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              />
-                              <button
-                                onClick={() => handleArrayRemove(field.key, i)}
-                                className="p-1 text-red-500 hover:bg-red-50 rounded"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                              </button>
-                            </div>
-                          ))}
-                          <button
-                            onClick={() => handleArrayAdd(field.key)}
-                            className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 mt-1"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                            {language === 'ru' ? 'Добавить' : 'Add'}
-                          </button>
-                        </div>
-                      ) : field.type === 'NUMBER' ? (
-                        <input
-                          type="number"
-                          value={value ?? ''}
-                          onChange={(e) => handleValueChange(field.key, e.target.value === '' ? null : Number(e.target.value))}
-                          placeholder={t.notFound}
-                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      ) : (
-                        <input
-                          type="text"
-                          value={value ?? ''}
-                          onChange={(e) => handleValueChange(field.key, e.target.value)}
-                          placeholder={t.notFound}
-                          className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : fileStatus.status === 'processing' ? (
+        <div className="flex-1 overflow-auto bg-slate-50/50 rounded-xl border border-slate-100 p-4 sm:p-6 custom-scrollbar min-h-[200px]">
+          {fileStatus.status === 'processing' ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 min-h-[160px]">
               <div className="w-12 h-12 border-4 border-blue-50 border-t-blue-600 rounded-full animate-spin"></div>
               <div className="text-center">
@@ -237,19 +171,79 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
                 <p className="text-xs text-slate-400 mt-1">{t.analyzingShapes}</p>
               </div>
             </div>
-          ) : fileStatus.status === 'error' ? (
-            <div className="h-full flex flex-col items-center justify-center text-red-500 bg-red-50/50 rounded-lg p-6 min-h-[160px]">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mb-3"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <p className="text-sm font-bold uppercase tracking-widest">{t.extractionFailed}</p>
-              <p className="text-xs mt-2 text-center max-w-xs">{fileStatus.error}</p>
-            </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-2 min-h-[60px] lg:min-h-0 py-2">
-              <div className="flex items-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>
-                <p className="text-sm font-medium">{t.pending}</p>
+            <>
+              {fileStatus.status === 'error' && (
+                <div className="flex items-center gap-3 mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  <p className="text-xs font-medium">{fileStatus.error}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                {activeTemplate.fields.map(field => {
+                  const value = localResult[field.key];
+                  return (
+                    <div key={field.id} className="bg-white p-3 rounded-lg border border-slate-200/60 shadow-sm">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">{field.label}</span>
+                      <div className="text-sm font-semibold text-slate-700 break-words">
+                        {field.type === 'BOOLEAN' ? (
+                          <select
+                            value={String(value ?? false)}
+                            onChange={(e) => handleValueChange(field.key, e.target.value === 'true')}
+                            className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                          >
+                            <option value="true">{t.yes}</option>
+                            <option value="false">{t.no}</option>
+                          </select>
+                        ) : field.type === 'ARRAY_STRING' || field.type === 'ARRAY_NUMBER' ? (
+                          <div className="space-y-1">
+                            {(Array.isArray(value) ? value : []).map((v: any, i: number) => (
+                              <div key={i} className="flex items-center gap-1">
+                                <input
+                                  type={field.type === 'ARRAY_NUMBER' ? 'number' : 'text'}
+                                  value={v}
+                                  onChange={(e) => handleArrayChange(field.key, i, e.target.value)}
+                                  className="flex-1 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <button
+                                  onClick={() => handleArrayRemove(field.key, i)}
+                                  className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => handleArrayAdd(field.key)}
+                              className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 mt-1"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                              {language === 'ru' ? 'Добавить' : 'Add'}
+                            </button>
+                          </div>
+                        ) : field.type === 'NUMBER' ? (
+                          <input
+                            type="number"
+                            value={value ?? ''}
+                            onChange={(e) => handleValueChange(field.key, e.target.value === '' ? null : Number(e.target.value))}
+                            placeholder={t.notFound}
+                            className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            value={value ?? ''}
+                            onChange={(e) => handleValueChange(field.key, e.target.value)}
+                            placeholder={t.notFound}
+                            className="w-full px-2 py-1 text-sm border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>

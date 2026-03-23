@@ -18,6 +18,8 @@ import TemplateManager from './components/TemplateManager';
 import SettingsPage from './components/SettingsPage';
 import Header from './components/Header';
 import DrawingCard from './components/DrawingCard';
+import FullscreenPreview from './components/FullscreenPreview';
+import ConfirmModal from './components/ConfirmModal';
 
 const STORAGE_KEY = 'blueprint_insight_state';
 
@@ -49,7 +51,8 @@ const App: React.FC = () => {
   const [isEditingTemplate, setIsEditingTemplate] = useState<Template | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [previewFile, setPreviewFile] = useState<FileStatus | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -156,6 +159,15 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSaveTemplate = (template: Template) => {
+    if (templates.some(t => t.id === template.id)) {
+      updateTemplate(template);
+    } else {
+      addTemplate(template);
+    }
+    setIsEditingTemplate(null);
+  };
+
   const handleImportTemplate = (template: Template) => {
     template.id = Math.random().toString(36).substr(2, 9);
     addTemplate(template);
@@ -253,7 +265,7 @@ const App: React.FC = () => {
                 )}
                 {files.length > 0 && (
                   <button
-                    onClick={clearFiles}
+                    onClick={() => setConfirmClearAll(true)}
                     className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
                     title={t.clearAll}
                   >
@@ -269,7 +281,7 @@ const App: React.FC = () => {
             >
               {files.length > 0 ? (
                 <div className="grid grid-cols-1 gap-6">
-                  {files.map(fileStatus => (
+                  {files.map((fileStatus, idx) => (
                     <DrawingCard 
                       key={fileStatus.id}
                       fileStatus={fileStatus}
@@ -277,7 +289,7 @@ const App: React.FC = () => {
                       language={language}
                       onProcess={processFile}
                       onRemove={removeFile}
-                      onPreview={setPreviewFile}
+                      onPreview={() => setPreviewIndex(idx)}
                       onUpdateResult={(id, result) => updateFileStatus(id, { result })}
                       translations={t}
                     />
@@ -324,34 +336,34 @@ const App: React.FC = () => {
         <TemplateEditor 
           template={isEditingTemplate} 
           language={language} 
-          onSave={updateTemplate} 
+          onSave={handleSaveTemplate} 
           onClose={() => setIsEditingTemplate(null)} 
           translations={t}
         />
       )}
 
-      {previewFile && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setPreviewFile(null)}
-        >
-          <button 
-            onClick={() => setPreviewFile(null)}
-            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-          <div className="absolute top-4 left-4 text-white">
-            <p className="text-sm font-medium">{previewFile.file.name}</p>
-            <p className="text-xs text-white/60">{(previewFile.file.size / 1024).toFixed(1)} KB</p>
-          </div>
-          <img 
-            src={previewFile.previewUrl} 
-            alt={previewFile.file.name}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
+      {previewIndex !== null && files[previewIndex] && (
+        <FullscreenPreview
+          files={files}
+          currentIndex={previewIndex}
+          activeTemplate={activeTemplate}
+          language={language}
+          onClose={() => setPreviewIndex(null)}
+          onNavigate={setPreviewIndex}
+          onUpdateResult={(id, result) => updateFileStatus(id, { result })}
+          translations={t}
+        />
+      )}
+
+      {confirmClearAll && (
+        <ConfirmModal
+          title={language === 'ru' ? 'Удалить все чертежи?' : 'Remove all drawings?'}
+          message={language === 'ru' ? 'Все загруженные чертежи и извлечённые данные будут удалены.' : 'All uploaded drawings and extracted data will be removed.'}
+          confirmLabel={language === 'ru' ? 'Удалить' : 'Remove'}
+          cancelLabel={language === 'ru' ? 'Отмена' : 'Cancel'}
+          onConfirm={() => { clearFiles(); setConfirmClearAll(false); }}
+          onCancel={() => setConfirmClearAll(false)}
+        />
       )}
 
       <footer className="py-4 bg-slate-900 text-slate-400 border-t border-slate-800 text-center text-[11px]">
