@@ -82,5 +82,8 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   systemPrompt: { ru: 'Системный промпт', en: 'System Prompt' },
   temperature: { ru: 'Температура (Temperature)', en: 'Temperature' },
   generalSettings: { ru: 'Общие настройки', en: 'General Settings' },
-  sha256Hash: { ru: 'SHA256 Хэш', en: 'SHA256 Hash' }
+  sha256Hash: { ru: 'SHA256 Хэш', en: 'SHA256 Hash' },
+  imageSize: { ru: 'Размер изображений', en: 'Image Size' },
+  original: { ru: 'Оригинал', en: 'Original' },
+  clearAll: { ru: 'Очистить всё', en: 'Clear All' }
 };

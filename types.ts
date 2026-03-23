@@ -56,6 +56,7 @@ export interface AppSettings {
   ollama?: OllamaConfig;
   systemPrompt: string;
   temperature: number;
+  imageMaxSize: number | null;
 }
 
 export interface AppState {

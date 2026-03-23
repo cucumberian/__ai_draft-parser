@@ -4,6 +4,8 @@ import { AppState, FileStatus, Template, Language, AppSettings } from './types.t
 import { DEFAULT_TEMPLATE, TRANSLATIONS, DEFAULT_SYSTEM_PROMPT } from './constants.ts';
 import { extractData } from './services/extractionService.ts';
 import { pdfToImageBase64, pdfToImagePreview, isPdfFile } from './services/pdfService.ts';
+import { isTifFile, tifToImageBase64 } from './services/tifService.ts';
+import { scaleImageToMaxSize, IMAGE_SIZE_OPTIONS } from './services/imageOptimizer.ts';
 import TemplateEditor from './components/TemplateEditor.tsx';
 import TemplateManager from './components/TemplateManager.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
@@ -29,6 +31,7 @@ const App: React.FC = () => {
             provider: 'openai',
             systemPrompt: DEFAULT_SYSTEM_PROMPT,
             temperature: 0.1,
+            imageMaxSize: null,
             ...parsed.settings
           }
         };
@@ -45,7 +48,8 @@ const App: React.FC = () => {
       settings: {
         provider: 'openai',
         systemPrompt: DEFAULT_SYSTEM_PROMPT,
-        temperature: 0.1
+        temperature: 0.1,
+        imageMaxSize: null
       }
     };
   });
@@ -100,38 +104,70 @@ const App: React.FC = () => {
     });
   };
 
+  const optimizeImage = async (base64: string, mimeType: string): Promise<string> => {
+    const maxSize = state.settings.imageMaxSize;
+    if (!maxSize || !mimeType.startsWith('image/')) return base64;
+    try {
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+      const result = await scaleImageToMaxSize(dataUrl, maxSize);
+      return result.base64;
+    } catch {
+      return base64;
+    }
+  };
+
   const handleFiles = async (filesList: FileList | null) => {
     if (!filesList) return;
-    
-    const newFiles: FileStatus[] = [];
-    for (const file of Array.from(filesList)) {
-      const sha256 = await calculateHash(file);
-      let previewUrl: string;
+
+    const newFiles: FileStatus[] = Array.from(filesList).map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      file,
+      previewUrl: '',
+      imageForModel: undefined,
+      status: 'pending' as const,
+      sha256: undefined
+    }));
+
+    setState(prev => ({ ...prev, files: [...prev.files, ...newFiles] }));
+
+    for (const entry of newFiles) {
+      let previewUrl = '';
       let imageForModel: string | undefined;
 
       try {
-        if (isPdfFile(file)) {
-          previewUrl = await pdfToImagePreview(file, 1.5);
-          imageForModel = await pdfToImageBase64(file, 2);
+        if (isPdfFile(entry.file)) {
+          previewUrl = await pdfToImagePreview(entry.file, 1.5);
+        } else if (isTifFile(entry.file)) {
+          const tifResult = await tifToImageBase64(entry.file);
+          previewUrl = tifResult.previewUrl;
+          imageForModel = tifResult.base64;
         } else {
-          previewUrl = await fileToBase64(file);
+          previewUrl = await fileToBase64(entry.file);
         }
       } catch (err) {
-        console.error('Error processing file:', err);
-        previewUrl = '';
+        console.error('Error generating preview:', err);
       }
 
-      newFiles.push({
-        id: Math.random().toString(36).substr(2, 9),
-        file,
-        previewUrl,
-        imageForModel,
-        status: 'pending',
-        sha256
-      });
-    }
+      try {
+        if (isPdfFile(entry.file) && !imageForModel) {
+          imageForModel = await pdfToImageBase64(entry.file, 2);
+        }
+      } catch (err) {
+        console.error('Error generating model image:', err);
+      }
 
-    setState(prev => ({ ...prev, files: [...prev.files, ...newFiles] }));
+      if (imageForModel) {
+        const modelMime = isPdfFile(entry.file) || isTifFile(entry.file) ? 'image/png' : entry.file.type;
+        imageForModel = await optimizeImage(imageForModel, modelMime);
+      }
+
+      let sha256: string | undefined;
+      try {
+        sha256 = await calculateHash(entry.file);
+      } catch {}
+
+      updateFileStatus(entry.id, { previewUrl, imageForModel, sha256 });
+    }
   };
 
   const onDragOver = (e: React.DragEvent) => {
@@ -176,11 +212,18 @@ const App: React.FC = () => {
       if (isPdfFile(fileStatus.file)) {
         base64 = fileStatus.imageForModel || await pdfToImageBase64(fileStatus.file, 2);
         mimeType = 'image/png';
+      } else if (isTifFile(fileStatus.file)) {
+        base64 = fileStatus.imageForModel || (await tifToImageBase64(fileStatus.file)).base64;
+        mimeType = 'image/png';
       } else {
         const dataUrl = await fileToBase64(fileStatus.file);
         base64 = dataUrl.split(',')[1];
         mimeType = fileStatus.file.type;
       }
+
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+
+      base64 = await optimizeImage(base64, mimeType);
 
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
@@ -370,9 +413,21 @@ const App: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                <div className="hidden sm:flex text-xs text-slate-400 font-medium items-center gap-2">
+                  {t.imageSize}:
+                  <select
+                    value={state.settings.imageMaxSize ?? ''}
+                    onChange={(e) => setState(p => ({ ...p, settings: { ...p.settings, imageMaxSize: e.target.value ? Number(e.target.value) : null } }))}
+                    className="bg-slate-50 border-none rounded px-2 py-0.5 text-slate-600 font-bold focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
+                  >
+                    {IMAGE_SIZE_OPTIONS.map(size => (
+                      <option key={String(size)} value={size ?? ''}>{size ? `${size}px` : t.original}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+                <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,image/*" />
                 <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-200 transition text-sm">
                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
                    {lang === 'ru' ? 'Добавить' : 'Add'}
@@ -406,6 +461,15 @@ const App: React.FC = () => {
                       CSV
                     </button>
                   </>
+                )}
+                {state.files.length > 0 && (
+                  <button
+                    onClick={() => setState(p => ({ ...p, files: [] }))}
+                    className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
+                    title={t.clearAll}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                  </button>
                 )}
               </div>
             </div>

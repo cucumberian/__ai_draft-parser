@@ -19,7 +19,8 @@
   "dependencies": {
     "pdfjs-dist": "^5.5.207",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "utif2": "^4.1.0"
   },
   "devDependencies": {
     "@electron-toolkit/utils": "^4.0.0",
@@ -48,7 +49,8 @@
       "icon": "resources/icon.icns"
     },
     "win": {
-      "target": "portable"
+      "target": "dir",
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": "AppImage"

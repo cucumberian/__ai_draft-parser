@@ -91,23 +91,40 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
   };
 
   const isPending = fileStatus.status === 'pending';
+  const hasPreview = !!fileStatus.previewUrl;
 
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col lg:flex-row transition hover:shadow-md ${isPending ? 'lg:h-auto' : 'lg:h-[500px] xl:h-[600px]'}`}>
       {/* Drawing Preview Area */}
       <div className={`w-full lg:w-[45%] xl:w-[40%] bg-slate-50 flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-slate-200 relative shrink-0 ${isPending ? 'h-[160px] lg:h-auto' : 'h-[220px] sm:h-[280px] lg:h-full'}`}>
-        <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-white border border-slate-100 shadow-sm cursor-pointer" onClick={() => onPreview(fileStatus)}>
-          <img src={fileStatus.previewUrl} alt={fileStatus.file.name} className="max-w-full max-h-full object-contain" />
-          <button 
-            onClick={(e) => { e.stopPropagation(); onRemove(fileStatus.id); }} 
-            className="absolute top-2 right-2 p-2 bg-red-500/90 text-white rounded-full lg:opacity-0 lg:group-hover:opacity-100 transition shadow-lg hover:bg-red-600 z-10"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-          <div className="absolute bottom-2 right-2 p-1.5 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+        {hasPreview ? (
+          <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-white border border-slate-100 shadow-sm cursor-pointer" onClick={() => onPreview(fileStatus)}>
+            <img src={fileStatus.previewUrl} alt={fileStatus.file.name} className="max-w-full max-h-full object-contain" />
+            <button 
+              onClick={(e) => { e.stopPropagation(); onRemove(fileStatus.id); }} 
+              className="absolute top-2 right-2 p-2 bg-red-500/90 text-white rounded-full lg:opacity-0 lg:group-hover:opacity-100 transition shadow-lg hover:bg-red-600 z-10"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div className="absolute bottom-2 right-2 p-1.5 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-white border border-slate-100 shadow-sm">
+            <button 
+              onClick={() => onRemove(fileStatus.id)} 
+              className="absolute top-2 right-2 p-2 bg-red-500/90 text-white rounded-full lg:opacity-0 lg:group-hover:opacity-100 transition shadow-lg hover:bg-red-600 z-10"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div className="flex flex-col items-center gap-2 text-slate-300">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span className="text-xs font-medium text-slate-400">{fileStatus.file.name}</span>
+              <div className="w-6 h-6 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin"></div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content Area */}
