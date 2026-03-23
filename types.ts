@@ -37,23 +37,14 @@ export interface FileStatus {
 export type View = 'dashboard' | 'templates' | 'settings';
 export type Language = 'ru' | 'en';
 
-export type AIProvider = 'openai' | 'ollama';
-
 export interface OpenAIConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
 }
 
-export interface OllamaConfig {
-  baseUrl: string;
-  model: string;
-}
-
 export interface AppSettings {
-  provider: AIProvider;
-  openai?: OpenAIConfig;
-  ollama?: OllamaConfig;
+  openai: OpenAIConfig;
   systemPrompt: string;
   temperature: number;
   imageMaxSize: number | null;

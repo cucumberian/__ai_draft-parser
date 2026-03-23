@@ -1,174 +1,69 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Template, Language, FileStatus } from './types';
+import { DEFAULT_TEMPLATE, DEFAULT_SYSTEM_PROMPT, DEFAULT_SETTINGS } from './constants';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { AppState, FileStatus, Template, Language, AppSettings } from './types.ts';
-import { DEFAULT_TEMPLATE, TRANSLATIONS, DEFAULT_SYSTEM_PROMPT } from './constants.ts';
-import { extractData } from './services/extractionService.ts';
-import { pdfToImageBase64, pdfToImagePreview, isPdfFile } from './services/pdfService.ts';
-import { isTifFile, tifToImageBase64 } from './services/tifService.ts';
-import { scaleImageToMaxSize, IMAGE_SIZE_OPTIONS } from './services/imageOptimizer.ts';
-import TemplateEditor from './components/TemplateEditor.tsx';
-import TemplateManager from './components/TemplateManager.tsx';
-import SettingsPage from './components/SettingsPage.tsx';
-import Header from './components/Header.tsx';
-import DrawingCard from './components/DrawingCard.tsx';
+import { useFiles } from './src/hooks/useFiles';
+import { useTemplates } from './src/hooks/useTemplates';
+import { useSettings } from './src/hooks/useSettings';
+import { useTranslation } from './src/hooks/useTranslation';
+import { exportToJson, exportToCsv } from './src/utils/export';
+
+import { extractData } from './services/extractionService';
+import { isPdfFile, pdfToImageBase64 } from './services/pdfService';
+import { isTifFile, tifToImageBase64 } from './services/tifService';
+import { IMAGE_SIZE_OPTIONS } from './services/imageOptimizer';
+
+import TemplateEditor from './components/TemplateEditor';
+import TemplateManager from './components/TemplateManager';
+import SettingsPage from './components/SettingsPage';
+import Header from './components/Header';
+import DrawingCard from './components/DrawingCard';
 
 const STORAGE_KEY = 'blueprint_insight_state';
 
-const App: React.FC = () => {
-  const [state, setState] = useState<AppState>(() => {
+function loadSavedState() {
+  try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          ...parsed,
-          files: [], 
-          currentView: 'dashboard',
-          currentLanguage: parsed.currentLanguage || 'ru',
-          templates: parsed.templates || [DEFAULT_TEMPLATE],
-          activeTemplateId: parsed.activeTemplateId || (parsed.templates?.[0]?.id || DEFAULT_TEMPLATE.id),
-          settings: {
-            provider: 'openai',
-            systemPrompt: DEFAULT_SYSTEM_PROMPT,
-            temperature: 0.1,
-            imageMaxSize: null,
-            ...parsed.settings
-          }
-        };
-      } catch (e) {
-        console.error("Failed to load saved state", e);
-      }
-    }
-    return {
-      templates: [DEFAULT_TEMPLATE],
-      activeTemplateId: DEFAULT_TEMPLATE.id,
-      files: [],
-      currentView: 'dashboard',
-      currentLanguage: 'ru',
-      settings: {
-        provider: 'openai',
-        systemPrompt: DEFAULT_SYSTEM_PROMPT,
-        temperature: 0.1,
-        imageMaxSize: null
-      }
-    };
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch {
+    return null;
+  }
+}
+
+const App: React.FC = () => {
+  const saved = loadSavedState();
+
+  const { templates, activeTemplateId, activeTemplate, updateTemplate, deleteTemplate, selectTemplate, addTemplate } = 
+    useTemplates(saved?.templates, saved?.activeTemplateId);
+
+  const { settings, updateSettings, updateOpenAIConfig, setImageMaxSize } = useSettings({
+    ...DEFAULT_SETTINGS,
+    ...saved?.settings
   });
 
+  const { language, t, toggleLanguage, setLanguage } = useTranslation(saved?.currentLanguage || 'ru');
+  const { files, fileInputRef, addFiles, removeFile, updateFileStatus, clearFiles } = useFiles();
+
+  const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isEditingTemplate, setIsEditingTemplate] = useState<Template | null>(null);
-  const [globalLoading, setGlobalLoading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileStatus | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const [isAborting, setIsAborting] = useState(false);
-
-  const lang = state.currentLanguage;
-  
-  const t = useMemo(() => {
-    return Object.keys(TRANSLATIONS).reduce((acc, key) => {
-      acc[key] = TRANSLATIONS[key][lang] || key;
-      return acc;
-    }, {} as any);
-  }, [lang]);
+  const abortControllerRef = React.useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const { files, currentView, ...toSave } = state;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-  }, [state.templates, state.activeTemplateId, state.currentLanguage, state.settings]);
-
-  const activeTemplate = useMemo(() => 
-    state.templates.find(t => t.id === state.activeTemplateId) || state.templates[0] || DEFAULT_TEMPLATE
-  , [state.templates, state.activeTemplateId]);
-
-  const toggleLanguage = () => {
-    setState(p => ({ ...p, currentLanguage: p.currentLanguage === 'ru' ? 'en' : 'ru' }));
-  };
-
-  const calculateHash = async (file: File): Promise<string> => {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch {
-      return `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    }
-  };
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = error => reject(error);
-    });
-  };
-
-  const optimizeImage = async (base64: string, mimeType: string): Promise<string> => {
-    const maxSize = state.settings.imageMaxSize;
-    if (!maxSize || !mimeType.startsWith('image/')) return base64;
-    try {
-      const dataUrl = `data:${mimeType};base64,${base64}`;
-      const result = await scaleImageToMaxSize(dataUrl, maxSize);
-      return result.base64;
-    } catch {
-      return base64;
-    }
-  };
-
-  const handleFiles = async (filesList: FileList | null) => {
-    if (!filesList) return;
-
-    const newFiles: FileStatus[] = Array.from(filesList).map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      previewUrl: '',
-      imageForModel: undefined,
-      status: 'pending' as const,
-      sha256: undefined
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      templates,
+      activeTemplateId,
+      currentLanguage: language,
+      settings
     }));
+  }, [templates, activeTemplateId, language, settings]);
 
-    setState(prev => ({ ...prev, files: [...prev.files, ...newFiles] }));
-
-    for (const entry of newFiles) {
-      let previewUrl = '';
-      let imageForModel: string | undefined;
-
-      try {
-        if (isPdfFile(entry.file)) {
-          previewUrl = await pdfToImagePreview(entry.file, 1.5);
-        } else if (isTifFile(entry.file)) {
-          const tifResult = await tifToImageBase64(entry.file);
-          previewUrl = tifResult.previewUrl;
-          imageForModel = tifResult.base64;
-        } else {
-          previewUrl = await fileToBase64(entry.file);
-        }
-      } catch (err) {
-        console.error('Error generating preview:', err);
-      }
-
-      try {
-        if (isPdfFile(entry.file) && !imageForModel) {
-          imageForModel = await pdfToImageBase64(entry.file, 2);
-        }
-      } catch (err) {
-        console.error('Error generating model image:', err);
-      }
-
-      if (imageForModel) {
-        const modelMime = isPdfFile(entry.file) || isTifFile(entry.file) ? 'image/png' : entry.file.type;
-        imageForModel = await optimizeImage(imageForModel, modelMime);
-      }
-
-      let sha256: string | undefined;
-      try {
-        sha256 = await calculateHash(entry.file);
-      } catch {}
-
-      updateFileStatus(entry.id, { previewUrl, imageForModel, sha256 });
-    }
-  };
+  const handleFiles = useCallback(async (filesList: FileList | null) => {
+    await addFiles(filesList, settings.imageMaxSize);
+  }, [addFiles, settings.imageMaxSize]);
 
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -191,14 +86,8 @@ const App: React.FC = () => {
     e.target.value = '';
   };
 
-  const removeFile = (id: string) => {
-    setState(prev => {
-      return { ...prev, files: prev.files.filter(f => f.id !== id) };
-    });
-  };
-
   const processFile = async (id: string, signal?: AbortSignal) => {
-    const fileStatus = state.files.find(f => f.id === id);
+    const fileStatus = files.find(f => f.id === id);
     if (!fileStatus) return;
 
     updateFileStatus(id, { status: 'processing', error: undefined });
@@ -216,18 +105,19 @@ const App: React.FC = () => {
         base64 = fileStatus.imageForModel || (await tifToImageBase64(fileStatus.file)).base64;
         mimeType = 'image/png';
       } else {
-        const dataUrl = await fileToBase64(fileStatus.file);
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.readAsDataURL(fileStatus.file);
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+        });
         base64 = dataUrl.split(',')[1];
         mimeType = fileStatus.file.type;
       }
 
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-      base64 = await optimizeImage(base64, mimeType);
-
-      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-
-      const result = await extractData(base64, activeTemplate.fields, mimeType, state.settings, signal);
+      const result = await extractData(base64, activeTemplate.fields, mimeType, settings, signal);
       updateFileStatus(id, { status: 'completed', result });
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -242,173 +132,72 @@ const App: React.FC = () => {
   const processAll = async () => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
-    setIsAborting(false);
-    setGlobalLoading(true);
+    setIsProcessing(true);
 
-    const toProcess = state.files.filter(f => f.status !== 'processing');
+    const toProcess = files.filter(f => f.status !== 'processing');
 
     for (const f of toProcess) {
       if (controller.signal.aborted) break;
       await processFile(f.id, controller.signal);
     }
 
-    setGlobalLoading(false);
+    setIsProcessing(false);
     abortControllerRef.current = null;
   };
 
   const cancelProcessing = () => {
     if (abortControllerRef.current) {
-      setIsAborting(true);
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-      setGlobalLoading(false);
-      // Reset any files stuck in processing state
-      state.files.filter(f => f.status === 'processing').forEach(f => {
+      setIsProcessing(false);
+      files.filter(f => f.status === 'processing').forEach(f => {
         updateFileStatus(f.id, { status: 'pending' });
       });
-      setIsAborting(false);
     }
   };
 
-  const exportToJson = () => {
-    const completedFiles = state.files.filter(f => f.status === 'completed' && f.result);
-    if (completedFiles.length === 0) return;
-    
-    const exportData = completedFiles.map(f => ({
-      filename: f.file.name,
-      ...f.result
-    }));
-    
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `blueprint-data-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleImportTemplate = (template: Template) => {
+    template.id = Math.random().toString(36).substr(2, 9);
+    addTemplate(template);
   };
 
-  const exportToCsv = () => {
-    const completedFiles = state.files.filter(f => f.status === 'completed' && f.result);
-    if (completedFiles.length === 0) return;
-
-    const allKeys = new Set<string>();
-    completedFiles.forEach(f => {
-      if (f.result) Object.keys(f.result).forEach(k => allKeys.add(k));
-    });
-    const headers = ['filename', ...Array.from(allKeys)];
-
-    const rows = completedFiles.map(f => {
-      const row: Record<string, string> = { filename: f.file.name };
-      allKeys.forEach(key => {
-        const value = f.result?.[key];
-        if (Array.isArray(value)) {
-          row[key] = value.join('; ');
-        } else if (value === null || value === undefined) {
-          row[key] = '';
-        } else {
-          row[key] = String(value);
-        }
-      });
-      return row;
-    });
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => headers.map(h => {
-        const val = row[h] || '';
-        return `"${val.replace(/"/g, '""')}"`;
-      }).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `blueprint-data-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const updateFileResult = (id: string, newResult: any) => {
-    updateFileStatus(id, { result: newResult });
-  };
-
-  const updateFileStatus = (id: string, updates: Partial<FileStatus>) => {
-    setState(prev => ({
-      ...prev,
-      files: prev.files.map(f => f.id === id ? { ...f, ...updates } : f)
-    }));
-  };
-
-  const saveEditedTemplate = (template: Template) => {
-    setState(prev => {
-      const exists = prev.templates.find(t => t.id === template.id);
-      if (exists) {
-        return {
-          ...prev,
-          templates: prev.templates.map(t => t.id === template.id ? template : t)
-        };
-      } else {
-        return {
-          ...prev,
-          templates: [...prev.templates, template]
-        };
-      }
-    });
-    setIsEditingTemplate(null);
-  };
-
-  const deleteTemplate = (id: string) => {
-    if (state.templates.length <= 1) return;
-    setState(prev => ({
-      ...prev,
-      templates: prev.templates.filter(t => t.id !== id),
-      activeTemplateId: prev.activeTemplateId === id ? prev.templates.find(t => t.id !== id)!.id : prev.activeTemplateId
-    }));
-  };
-
-  const createNewTemplate = () => {
+  const handleCreateTemplate = () => {
     const newTemplate: Template = {
       id: Math.random().toString(36).substr(2, 9),
-      name: lang === 'ru' ? 'Новый шаблон' : 'New Custom Template',
+      name: language === 'ru' ? 'Новый шаблон' : 'New Custom Template',
       fields: []
     };
     setIsEditingTemplate(newTemplate);
   };
 
-  const updateSettings = (settings: AppSettings) => {
-    setState(prev => ({ ...prev, settings }));
-  };
-
-  const allCompleted = state.files.length > 0 && state.files.every(f => f.status === 'completed');
+  const allCompleted = files.length > 0 && files.every(f => f.status === 'completed');
 
   return (
     <div className="min-h-screen flex flex-col">
       <Header 
-        currentView={state.currentView}
-        onViewChange={(view) => setState(p => ({ ...p, currentView: view }))}
-        currentLanguage={state.currentLanguage}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        currentLanguage={language}
         onLanguageToggle={toggleLanguage}
         translations={t}
       />
 
       <main className="flex-1 container mx-auto p-4 md:p-8 flex flex-col">
-        {state.currentView === 'dashboard' ? (
+        {currentView === 'dashboard' ? (
           <div className="flex-1 flex flex-col space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border border-slate-200 gap-4 sticky top-[60px] md:top-[70px] z-30 shadow-md">
               <div className="flex items-center gap-3">
                 <div className="px-3 py-1 bg-slate-100 rounded-full text-slate-600 text-xs font-bold uppercase tracking-wider">
-                  {state.files.length} {t.files}
+                  {files.length} {t.files}
                 </div>
                 <div className="hidden sm:flex text-xs text-slate-400 font-medium items-center gap-2">
                   {t.activePattern}: 
                   <select 
-                    value={state.activeTemplateId}
-                    onChange={(e) => setState(p => ({ ...p, activeTemplateId: e.target.value }))}
+                    value={activeTemplateId}
+                    onChange={(e) => selectTemplate(e.target.value)}
                     className="bg-slate-50 border-none rounded px-2 py-0.5 text-slate-600 font-bold focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
                   >
-                    {state.templates.map(tmpl => (
+                    {templates.map(tmpl => (
                       <option key={tmpl.id} value={tmpl.id}>{tmpl.name}</option>
                     ))}
                   </select>
@@ -416,8 +205,8 @@ const App: React.FC = () => {
                 <div className="hidden sm:flex text-xs text-slate-400 font-medium items-center gap-2">
                   {t.imageSize}:
                   <select
-                    value={state.settings.imageMaxSize ?? ''}
-                    onChange={(e) => setState(p => ({ ...p, settings: { ...p.settings, imageMaxSize: e.target.value ? Number(e.target.value) : null } }))}
+                    value={settings.imageMaxSize ?? ''}
+                    onChange={(e) => setImageMaxSize(e.target.value ? Number(e.target.value) : null)}
                     className="bg-slate-50 border-none rounded px-2 py-0.5 text-slate-600 font-bold focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
                   >
                     {IMAGE_SIZE_OPTIONS.map(size => (
@@ -430,31 +219,31 @@ const App: React.FC = () => {
                 <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,image/*" />
                 <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-200 transition text-sm">
                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                   {lang === 'ru' ? 'Добавить' : 'Add'}
+                   <span className="hidden sm:inline">{language === 'ru' ? 'Добавить' : 'Add'}</span>
                 </button>
                 <button 
-                  onClick={globalLoading ? cancelProcessing : processAll}
-                  disabled={!globalLoading && state.files.length === 0}
-                  className={`px-5 py-2 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-sm text-sm ${globalLoading ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300'}`}
+                  onClick={isProcessing ? cancelProcessing : processAll}
+                  disabled={!isProcessing && files.length === 0}
+                  className={`px-5 py-2 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition shadow-sm text-sm ${isProcessing ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300'}`}
                 >
-                  {globalLoading ? (
+                  {isProcessing ? (
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                   )}
-                  {globalLoading ? t.cancelExtraction : (allCompleted ? t.rerunAll : t.startExtraction)}
+                  {isProcessing ? t.cancelExtraction : (allCompleted ? t.rerunAll : t.startExtraction)}
                 </button>
-                {state.files.some(f => f.status === 'completed') && (
+                {files.some(f => f.status === 'completed') && (
                   <>
                     <button 
-                      onClick={exportToJson}
+                      onClick={() => exportToJson(files)}
                       className="px-4 py-2 bg-green-100 text-green-700 rounded-lg font-bold flex items-center gap-2 hover:bg-green-200 transition text-sm"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                       JSON
                     </button>
                     <button 
-                      onClick={exportToCsv}
+                      onClick={() => exportToCsv(files)}
                       className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-200 transition text-sm"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -462,9 +251,9 @@ const App: React.FC = () => {
                     </button>
                   </>
                 )}
-                {state.files.length > 0 && (
+                {files.length > 0 && (
                   <button
-                    onClick={() => setState(p => ({ ...p, files: [] }))}
+                    onClick={clearFiles}
                     className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
                     title={t.clearAll}
                   >
@@ -478,30 +267,30 @@ const App: React.FC = () => {
               className={`flex-1 relative min-h-[400px] flex flex-col transition-all duration-300 ${isDragging ? 'bg-blue-50/20' : ''}`}
               onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
             >
-              {state.files.length > 0 ? (
+              {files.length > 0 ? (
                 <div className="grid grid-cols-1 gap-6">
-                  {state.files.map(fileStatus => (
+                  {files.map(fileStatus => (
                     <DrawingCard 
                       key={fileStatus.id}
                       fileStatus={fileStatus}
                       activeTemplate={activeTemplate}
-                      language={state.currentLanguage}
+                      language={language}
                       onProcess={processFile}
                       onRemove={removeFile}
                       onPreview={setPreviewFile}
-                      onUpdateResult={updateFileResult}
+                      onUpdateResult={(id, result) => updateFileStatus(id, { result })}
                       translations={t}
                     />
                   ))}
                 </div>
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-12 rounded-2xl bg-white border border-slate-100 shadow-sm" onClick={() => fileInputRef.current?.click()} style={{ cursor: 'pointer' }}>
-                  <div className="w-24 h-24 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-inner transition group-hover:scale-110">
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-12 rounded-2xl bg-white border border-slate-100 shadow-sm cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <div className="w-24 h-24 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-inner">
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
                   <h3 className="text-2xl font-bold text-slate-800">{t.noDrawings}</h3>
                   <p className="text-slate-500 max-w-sm mx-auto mt-4">
-                    {lang === 'ru' ? 'Используйте кнопку "Добавить" или перетащите файлы в это окно' : 'Use the "Add" button or drag files into this window'}.
+                    {language === 'ru' ? 'Используйте кнопку "Добавить" или перетащите файлы в это окно' : 'Use the "Add" button or drag files into this window'}.
                     <br />
                     <span className="text-sm text-slate-400 font-medium mt-2 block">{activeTemplate.name}</span>
                   </p>
@@ -509,22 +298,22 @@ const App: React.FC = () => {
               )}
             </div>
           </div>
-        ) : state.currentView === 'templates' ? (
+        ) : currentView === 'templates' ? (
           <TemplateManager 
-            templates={state.templates} 
-            activeTemplateId={state.activeTemplateId} 
-            language={lang} 
-            onSelect={(id) => setState(p => ({ ...p, activeTemplateId: id, currentView: 'dashboard' }))} 
-            onEdit={(t) => setIsEditingTemplate(t)} 
+            templates={templates} 
+            activeTemplateId={activeTemplateId} 
+            language={language} 
+            onSelect={(id) => { selectTemplate(id); setCurrentView('dashboard'); }} 
+            onEdit={setIsEditingTemplate} 
             onDelete={deleteTemplate} 
-            onImport={(t) => setState(p => ({ ...p, templates: [...p.templates, t] }))} 
-            onCreate={createNewTemplate}
+            onImport={handleImportTemplate} 
+            onCreate={handleCreateTemplate}
             translations={t}
           />
         ) : (
           <SettingsPage 
-            settings={state.settings} 
-            language={lang} 
+            settings={settings} 
+            language={language} 
             onSave={updateSettings} 
             translations={t}
           />
@@ -534,8 +323,8 @@ const App: React.FC = () => {
       {isEditingTemplate && (
         <TemplateEditor 
           template={isEditingTemplate} 
-          language={lang} 
-          onSave={saveEditedTemplate} 
+          language={language} 
+          onSave={updateTemplate} 
           onClose={() => setIsEditingTemplate(null)} 
           translations={t}
         />

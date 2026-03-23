@@ -1,5 +1,5 @@
 
-import { ExtractionField, FieldType, AppSettings } from "../types.ts";
+import { ExtractionField, AppSettings } from "../types";
 
 export async function extractData(
   fileDataBase64: string,
@@ -8,11 +8,10 @@ export async function extractData(
   settings: AppSettings,
   signal?: AbortSignal
 ) {
-  return extractFromOpenAI(fileDataBase64, fields, mimeType, settings.openai!, settings.systemPrompt, settings.temperature, signal);
+  return extractFromOpenAI(fileDataBase64, fields, mimeType, settings.openai, settings.systemPrompt, settings.temperature, signal);
 }
 
 async function apiFetch(url: string, options: RequestInit): Promise<Response> {
-  // Use Electron IPC if available, otherwise fallback to fetch
   if (typeof window !== 'undefined' && (window as any).electronAPI?.apiRequest) {
     const headers: Record<string, string> = {};
     if (options.headers) {
@@ -39,7 +38,6 @@ async function apiFetch(url: string, options: RequestInit): Promise<Response> {
     } as Response;
   }
 
-  // Fallback to regular fetch
   return fetch(url, options);
 }
 
@@ -59,7 +57,7 @@ async function extractFromOpenAI(
 
   const base64Data = fileDataBase64.includes(',') ? fileDataBase64 : `data:${mimeType};base64,${fileDataBase64}`;
 
-  const schema: Record<string, any> = {};
+  const schema: Record<string, string> = {};
   fields.forEach(f => {
     schema[f.key] = f.description;
   });
@@ -83,9 +81,6 @@ async function extractFromOpenAI(
     max_tokens: 4096,
   });
 
-  console.log('Sending request to:', url);
-  console.log('Model:', config.model);
-
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
@@ -94,7 +89,6 @@ async function extractFromOpenAI(
     headers['Authorization'] = `Bearer ${config.apiKey}`;
   }
 
-  // Check if already aborted
   if (signal?.aborted) {
     throw new DOMException('Aborted', 'AbortError');
   }
@@ -109,14 +103,10 @@ async function extractFromOpenAI(
     });
   } catch (e: any) {
     if (e.name === 'AbortError') throw e;
-    console.error('Network error:', e);
     throw new Error(`Не удалось подключиться к ${url}. Проверьте что сервер запущен.`);
   }
 
-  console.log('Response status:', response.status);
-
   const responseText = await response.text();
-  console.log('Response body:', responseText);
 
   if (!response.ok) {
     let errorMsg = responseText;

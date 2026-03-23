@@ -1,5 +1,5 @@
 
-import { Template, FieldType } from './types';
+import { Template, FieldType, AppSettings } from './types';
 
 export const DEFAULT_TEMPLATE: Template = {
   id: 'default-eng',
@@ -24,6 +24,17 @@ export const DEFAULT_TEMPLATE: Template = {
 
 export const DEFAULT_SYSTEM_PROMPT = "You are an engineering assistant. Extract specific fields from this drawing. Return ONLY valid JSON.";
 
+export const DEFAULT_SETTINGS: AppSettings = {
+  openai: {
+    baseUrl: '',
+    apiKey: '',
+    model: ''
+  },
+  systemPrompt: DEFAULT_SYSTEM_PROMPT,
+  temperature: 0.0,
+  imageMaxSize: 720
+};
+
 export const TRANSLATIONS: Record<string, Record<string, string>> = {
   dashboard: { ru: 'Дашборд', en: 'Dashboard' },
   templates: { ru: 'Шаблоны', en: 'Templates' },
@@ -32,7 +43,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
   processDrawings: { ru: 'Обработка чертежей', en: 'Process Drawings' },
   uploadDescription: { ru: 'Загрузите чертежи (PDF или изображение) для извлечения данных с помощью шаблона', en: 'Upload blueprints (PDF or Image) to extract data using the template' },
   files: { ru: 'файлов', en: 'files' },
-  startExtraction: { ru: 'Начать извлечение', en: 'Start Extraction' },
+  startExtraction: { ru: 'Извлечь', en: 'Extract' },
   processingBatch: { ru: 'Обработка...', en: 'Processing...' },
   exportJson: { ru: 'Экспорт JSON', en: 'Export JSON' },
   exportCsv: { ru: 'Экспорт CSV', en: 'Export CSV' },
