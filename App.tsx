@@ -229,7 +229,7 @@ const App: React.FC = () => {
           id: Math.random().toString(36).substr(2, 9),
           file: dummyFile,
           previewUrl: '',
-          rotation: 0,
+          rotation: entry.rotation || 0,
           status: (entry.result ? 'completed' : 'pending') as 'pending' | 'completed',
           result: entry.result,
           sha256: entry.sha256,

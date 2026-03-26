@@ -24,10 +24,8 @@ const Header: React.FC<HeaderProps> = ({
   projectName,
   onProjectNameChange,
 }) => {
-  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editName, setEditName] = useState(projectName);
-  const projectMenuRef = useRef<HTMLDivElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,20 +39,12 @@ const Header: React.FC<HeaderProps> = ({
     }
   }, [isEditingName]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (projectMenuRef.current && !projectMenuRef.current.contains(e.target as Node)) {
-        setProjectMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const commitNameEdit = () => {
     const trimmed = editName.trim();
     if (trimmed && trimmed !== projectName) {
-      onProjectNameChange(trimmed);
+      const sanitized = trimmed.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, '_');
+      onProjectNameChange(sanitized);
+      setEditName(sanitized);
     } else {
       setEditName(projectName);
     }
@@ -93,41 +83,32 @@ const Header: React.FC<HeaderProps> = ({
             </h1>
           )}
 
-          {/* Project dropdown */}
-          <div className="relative no-drag" ref={projectMenuRef}>
+          {/* Project buttons */}
+          <div className="flex items-center gap-1.5 no-drag">
             <button
-              onClick={() => setProjectMenuOpen(!projectMenuOpen)}
-              className="flex items-center gap-1.5 px-2 py-1.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg transition-all duration-200 group"
-              title={t.project}
+              onClick={onSaveProject}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/80 hover:bg-blue-600 border border-blue-500/50 rounded-lg transition-all duration-200 group"
+              title={t.saveProject}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 group-hover:text-green-400 transition-colors">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
               </svg>
-              <span className="text-[10px] font-bold tracking-wider text-slate-300 group-hover:text-white uppercase hidden sm:inline">
-                {t.project}
+              <span className="text-[10px] font-bold tracking-wider text-white uppercase hidden md:inline">
+                {t.saveProject}
               </span>
-              <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
             </button>
-            {projectMenuOpen && (
-              <div className="absolute left-0 top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl overflow-hidden z-50">
-                <button
-                  onClick={() => { onSaveProject(); setProjectMenuOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                  {t.saveProject}
-                </button>
-                <button
-                  onClick={() => { onLoadProject(); setProjectMenuOpen(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-white transition border-t border-slate-700"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="12 11 12 17"/><polyline points="9 14 12 11 15 14"/></svg>
-                  {t.loadProject}
-                </button>
-              </div>
-            )}
+            <button
+              onClick={onLoadProject}
+              className="flex items-center gap-1.5 px-2 py-1.5 bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-lg transition-all duration-200 group"
+              title={t.loadProject}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 group-hover:text-white transition-colors">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="12 11 12 17"/><polyline points="9 14 12 11 15 14"/>
+              </svg>
+              <span className="text-[10px] font-bold tracking-wider text-slate-300 group-hover:text-white uppercase hidden md:inline">
+                {t.loadProject}
+              </span>
+            </button>
           </div>
         </div>
 

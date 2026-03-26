@@ -13,6 +13,10 @@ function getDateStamp(): string {
   return new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 }
 
+function sanitizeFilename(name: string): string {
+  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, '_').slice(0, 100) || 'project';
+}
+
 export function exportProject(
   files: FileStatus[],
   template: Template,
@@ -27,6 +31,7 @@ export function exportProject(
       sha256: f.sha256!,
       result: f.result || undefined,
       verified: f.verified || false,
+      rotation: f.rotation || undefined,
     }));
 
   const project: Project = {
@@ -40,7 +45,7 @@ export function exportProject(
   };
 
   const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' });
-  downloadBlob(blob, `project-${getDateStamp()}.json`);
+  downloadBlob(blob, `${sanitizeFilename(projectName)}.json`);
 }
 
 export function importProject(jsonString: string): Project {

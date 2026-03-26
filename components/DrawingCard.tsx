@@ -102,7 +102,14 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
       <div className="w-full lg:w-[45%] xl:w-[40%] bg-slate-50 flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-slate-200 relative shrink-0 h-[220px] sm:h-[280px] lg:h-full">
         {hasPreview ? (
           <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-white border border-slate-100 shadow-sm cursor-pointer" onClick={() => onPreview(fileStatus)}>
-            <img src={fileStatus.previewUrl} alt={fileStatus.file.name} className="max-w-full max-h-full object-contain" style={{ transform: `rotate(${fileStatus.rotation}deg)` }} />
+            <div className="w-full h-full flex items-center justify-center overflow-hidden">
+              <img
+                src={fileStatus.previewUrl}
+                alt={fileStatus.file.name}
+                className="max-w-full max-h-full object-contain transition-transform duration-200"
+                style={{ transform: `rotate(${fileStatus.rotation}deg)` }}
+              />
+            </div>
             <div className="absolute bottom-2 left-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition z-10">
               <button
                 onClick={(e) => { e.stopPropagation(); onRotate?.(fileStatus.id, (fileStatus.rotation - 90 + 360) % 360); }}

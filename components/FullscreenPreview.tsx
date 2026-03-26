@@ -156,7 +156,7 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({
       <img
         src={file.previewUrl}
         alt={file.file.name}
-        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
+        className="max-w-[calc(100vw-6rem)] max-h-[calc(100vh-8rem)] object-contain rounded-lg shadow-2xl transition-transform duration-200"
         style={{ transform: `rotate(${file.rotation}deg)` }}
         onClick={(e) => e.stopPropagation()}
       />

@@ -43,6 +43,7 @@ export interface ProjectFileEntry {
   sha256: string;
   result?: any;
   verified?: boolean;
+  rotation?: number;
 }
 
 export interface Project {
