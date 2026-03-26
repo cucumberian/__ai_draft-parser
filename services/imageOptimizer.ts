@@ -26,3 +26,23 @@ export function scaleImageToMaxSize(dataUrl: string, maxSize: number): Promise<{
     img.src = dataUrl;
   });
 }
+
+export function rotateBase64(base64: string, degrees: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (degrees % 360 === 0) { resolve(base64); return; }
+    const img = new Image();
+    img.onload = () => {
+      const isVertical = degrees === 90 || degrees === 270;
+      const canvas = document.createElement('canvas');
+      canvas.width = isVertical ? img.height : img.width;
+      canvas.height = isVertical ? img.width : img.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((degrees * Math.PI) / 180);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      resolve(canvas.toDataURL('image/png').split(',')[1]);
+    };
+    img.onerror = reject;
+    img.src = `data:image/png;base64,${base64}`;
+  });
+}

@@ -70,6 +70,17 @@ const TemplateEditor: React.FC<TemplateEditorProps> = ({ template, language, onS
             />
           </div>
 
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.templateDescription}</label>
+            <textarea
+              value={editedTemplate.description || ''}
+              onChange={(e) => setEditedTemplate(prev => ({ ...prev, description: e.target.value }))}
+              rows={3}
+              className="p-3 border-2 border-slate-100 rounded-xl focus:border-indigo-500 focus:ring-0 outline-none transition text-sm resize-none"
+              placeholder={t.noDescription}
+            />
+          </div>
+
           <div className="flex justify-between items-center pt-4 border-t border-slate-100">
             <h3 className="font-bold text-slate-700 text-lg">{t.fieldsToExtract}</h3>
             <button 

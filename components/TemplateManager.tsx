@@ -100,7 +100,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
         {templates.map(template => (
           <div 
             key={template.id} 
-            className={`p-5 rounded-xl border-2 transition ${
+            className={`p-5 rounded-xl border-2 transition overflow-hidden ${
               activeTemplateId === template.id 
                 ? 'border-blue-500 bg-blue-50/30' 
                 : 'border-slate-200 bg-white hover:border-slate-300'
@@ -109,7 +109,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
             <div className="flex justify-between items-start mb-3">
               <h3 className="font-bold text-slate-800 truncate pr-2">{template.name}</h3>
               {activeTemplateId === template.id && (
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold uppercase rounded">{t.active}</span>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold uppercase rounded shrink-0">{t.active}</span>
               )}
             </div>
             
@@ -118,7 +118,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
               {template.description || t.noDescription}
             </p>
 
-            <div className="flex items-center gap-2 pt-4 border-t border-slate-100">
+            <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-slate-100">
               <button 
                 onClick={() => onSelect(template.id)}
                 className="text-xs font-bold text-blue-600 hover:underline uppercase"
@@ -137,7 +137,7 @@ const TemplateManager: React.FC<TemplateManagerProps> = ({
               >
                 {t.export}
               </button>
-              <div className="flex-1"></div>
+              <div className="flex-1 min-w-0"></div>
               {templates.length > 1 && (
                 <button 
                   onClick={() => onDelete(template.id)}

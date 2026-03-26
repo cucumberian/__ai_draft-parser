@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { FileStatus, Template, Language, ExtractionField } from '../types.ts';
+import { FileStatus, Template, Language } from '../types.ts';
+import FullscreenTopPanel from './FullscreenTopPanel.tsx';
 
 interface FullscreenPreviewProps {
   files: FileStatus[];
@@ -9,89 +10,9 @@ interface FullscreenPreviewProps {
   onClose: () => void;
   onNavigate: (index: number) => void;
   onUpdateResult: (id: string, result: any) => void;
+  onToggleVerification?: (id: string) => void;
+  onRotate?: (id: string, degrees: number) => void;
   translations: any;
-}
-
-function FieldInput({ field, value, onChange, language, t }: {
-  field: ExtractionField;
-  value: any;
-  onChange: (val: any) => void;
-  language: Language;
-  t: any;
-}) {
-  const inputBase = "bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white placeholder-white/30 focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 w-full";
-
-  if (field.type === 'BOOLEAN') {
-    return (
-      <select
-        value={String(value ?? false)}
-        onChange={(e) => onChange(e.target.value === 'true')}
-        className="bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer"
-        style={{ minWidth: 60 }}
-      >
-        <option value="true" className="bg-slate-800">{t.yes}</option>
-        <option value="false" className="bg-slate-800">{t.no}</option>
-      </select>
-    );
-  }
-
-  if (field.type === 'ARRAY_STRING' || field.type === 'ARRAY_NUMBER') {
-    const arr = Array.isArray(value) ? value : [];
-    return (
-      <div className="flex flex-col gap-1">
-        {arr.map((v: any, i: number) => (
-          <div key={i} className="flex items-center gap-1">
-            <input
-              type={field.type === 'ARRAY_NUMBER' ? 'number' : 'text'}
-              value={v}
-              onChange={(e) => {
-                const newArr = [...arr];
-                newArr[i] = field.type === 'ARRAY_NUMBER' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value;
-                onChange(newArr);
-              }}
-              className={inputBase}
-              style={{ minWidth: 50 }}
-            />
-            <button
-              onClick={() => { const n = [...arr]; n.splice(i, 1); onChange(n); }}
-              className="p-0.5 text-red-400 hover:text-red-300 shrink-0"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-        ))}
-        <button
-          onClick={() => onChange([...arr, field.type === 'ARRAY_NUMBER' ? 0 : ''])}
-          className="text-[10px] text-blue-400 hover:text-blue-300 font-medium flex items-center gap-1 mt-0.5"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-          {language === 'ru' ? 'Добавить' : 'Add'}
-        </button>
-      </div>
-    );
-  }
-
-  if (field.type === 'NUMBER') {
-    return (
-      <input
-        type="number"
-        value={value ?? ''}
-        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
-        placeholder={t.notFound}
-        className={inputBase}
-      />
-    );
-  }
-
-  return (
-    <input
-      type="text"
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={t.notFound}
-      className={inputBase}
-    />
-  );
 }
 
 const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({
@@ -102,6 +23,8 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({
   onClose,
   onNavigate,
   onUpdateResult,
+  onToggleVerification,
+  onRotate,
   translations: t,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,13 +60,26 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({
     if (hasNext) onNavigate(currentIndex + 1);
   }, [hasNext, currentIndex, onNavigate]);
 
+  // Use a ref so keyboard handler always reads latest value
+  const toggleRef = useRef(onToggleVerification);
+  toggleRef.current = onToggleVerification;
+  const filesRef = useRef(files);
+  filesRef.current = files;
+  const indexRef = useRef(currentIndex);
+  indexRef.current = currentIndex;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { onClose(); return; }
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      if (e.key === 'ArrowLeft') goPrev();
-      if (e.key === 'ArrowRight') goNext();
+      if (e.key === 'ArrowLeft') { goPrev(); return; }
+      if (e.key === 'ArrowRight') { goNext(); return; }
+      if ((e.key === ' ' || e.key === 'Enter') && toggleRef.current) {
+        e.preventDefault();
+        const currentFile = filesRef.current[indexRef.current];
+        if (currentFile) toggleRef.current(currentFile.id);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -178,37 +114,21 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
 
-      {/* Position indicator */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-1.5 bg-black/60 backdrop-blur-sm rounded-full text-white text-sm font-medium">
-        {currentIndex + 1} / {files.length}
-      </div>
-
-      {/* Editable fields panel */}
-      <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 max-w-[90vw] w-auto max-h-[50vh] overflow-y-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
-        <div className="bg-black/60 backdrop-blur-md rounded-xl px-5 py-3 text-white">
-          <div className="flex items-center gap-3 mb-3 pb-2 border-b border-white/10">
-            <p className="text-sm font-medium truncate max-w-[400px]">{file.file.name}</p>
-            <span className="text-xs text-white/50 shrink-0">{(file.file.size / 1024).toFixed(1)} KB</span>
-            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded shrink-0 ${file.status === 'completed' ? 'bg-green-500/30 text-green-300' : file.status === 'processing' ? 'bg-blue-500/30 text-blue-300' : file.status === 'error' ? 'bg-red-500/30 text-red-300' : 'bg-white/10 text-white/50'}`}>
-              {file.status === 'pending' ? t.pending : file.status === 'processing' ? t.working : file.status === 'completed' ? t.yes : t.extractionFailed}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-4 gap-y-2.5">
-            {activeTemplate.fields.map(field => (
-              <div key={field.id} className="min-w-0">
-                <label className="text-[9px] text-white/40 uppercase font-bold block mb-1 truncate">{field.label}</label>
-                <FieldInput
-                  field={field}
-                  value={localResult[field.key]}
-                  onChange={(val) => handleValueChange(field.key, val)}
-                  language={language}
-                  t={t}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {/* Top panel */}
+      <FullscreenTopPanel
+        file={file}
+        currentIndex={currentIndex}
+        filesCount={files.length}
+        activeTemplate={activeTemplate}
+        language={language}
+        localResult={localResult}
+        onValueChange={handleValueChange}
+        onToggleVerification={onToggleVerification}
+        t={t}
+        filesRef={filesRef}
+        indexRef={indexRef}
+        toggleRef={toggleRef}
+      />
 
       {/* Left arrow */}
       {hasPrev && (
@@ -236,9 +156,28 @@ const FullscreenPreview: React.FC<FullscreenPreviewProps> = ({
       <img
         src={file.previewUrl}
         alt={file.file.name}
-        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200"
+        style={{ transform: `rotate(${file.rotation}deg)` }}
         onClick={(e) => e.stopPropagation()}
       />
+
+      {/* Rotate buttons */}
+      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+        <button
+          onClick={(e) => { e.stopPropagation(); onRotate?.(file.id, (file.rotation - 90 + 360) % 360); }}
+          className="p-3 bg-white/20 hover:bg-white/35 rounded-full text-white transition shadow-lg"
+          title={language === 'ru' ? 'Повернуть влево' : 'Rotate left'}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onRotate?.(file.id, (file.rotation + 90) % 360); }}
+          className="p-3 bg-white/20 hover:bg-white/35 rounded-full text-white transition shadow-lg"
+          title={language === 'ru' ? 'Повернуть вправо' : 'Rotate right'}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        </button>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Template, Language, FileStatus } from './types';
+import { View, Template, Language, FileStatus, Project } from './types';
 import { DEFAULT_TEMPLATE, DEFAULT_SYSTEM_PROMPT, DEFAULT_SETTINGS } from './constants';
 
 import { useFiles } from './src/hooks/useFiles';
@@ -7,11 +7,12 @@ import { useTemplates } from './src/hooks/useTemplates';
 import { useSettings } from './src/hooks/useSettings';
 import { useTranslation } from './src/hooks/useTranslation';
 import { exportToJson, exportToCsv } from './src/utils/export';
+import { exportProject, importProject } from './services/projectService';
 
 import { extractData } from './services/extractionService';
-import { isPdfFile, pdfToImageBase64 } from './services/pdfService';
+import { isPdfFile, pdfToImageBase64, pdfToImagePreview } from './services/pdfService';
 import { isTifFile, tifToImageBase64 } from './services/tifService';
-import { IMAGE_SIZE_OPTIONS } from './services/imageOptimizer';
+import { IMAGE_SIZE_OPTIONS, rotateBase64 } from './services/imageOptimizer';
 
 import TemplateEditor from './components/TemplateEditor';
 import TemplateManager from './components/TemplateManager';
@@ -22,6 +23,12 @@ import FullscreenPreview from './components/FullscreenPreview';
 import ConfirmModal from './components/ConfirmModal';
 
 const STORAGE_KEY = 'blueprint_insight_state';
+
+function generateProjectName(): string {
+  const prefix = crypto.randomUUID().slice(0, 3);
+  const date = new Date().toISOString().slice(0, 10);
+  return `${prefix}_${date}`;
+}
 
 function loadSavedState() {
   try {
@@ -45,7 +52,7 @@ const App: React.FC = () => {
   });
 
   const { language, t, toggleLanguage, setLanguage } = useTranslation(saved?.currentLanguage || 'ru');
-  const { files, fileInputRef, addFiles, removeFile, updateFileStatus, clearFiles } = useFiles();
+  const { files, fileInputRef, addFiles, removeFile, updateFileStatus, clearFiles, toggleVerification, setFiles } = useFiles();
 
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [isEditingTemplate, setIsEditingTemplate] = useState<Template | null>(null);
@@ -53,19 +60,28 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [conversionProgress, setConversionProgress] = useState<{ current: number; total: number } | null>(null);
+  const [projectName, setProjectName] = useState<string>(() => generateProjectName());
+  const [projectNotification, setProjectNotification] = useState<string | null>(null);
   const abortControllerRef = React.useRef<AbortController | null>(null);
+  const projectInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       templates,
       activeTemplateId,
       currentLanguage: language,
-      settings
+      settings,
     }));
   }, [templates, activeTemplateId, language, settings]);
 
   const handleFiles = useCallback(async (filesList: FileList | null) => {
-    await addFiles(filesList, settings.imageMaxSize);
+    if (!filesList || filesList.length === 0) return;
+    setConversionProgress({ current: 0, total: filesList.length });
+    await addFiles(filesList, settings.imageMaxSize, (current, total) => {
+      setConversionProgress({ current, total });
+    });
+    setConversionProgress(null);
   }, [addFiles, settings.imageMaxSize]);
 
   const onDragOver = (e: React.DragEvent) => {
@@ -120,7 +136,11 @@ const App: React.FC = () => {
 
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 
-      const result = await extractData(base64, activeTemplate.fields, mimeType, settings, signal);
+      if (fileStatus.rotation) {
+        base64 = await rotateBase64(base64, fileStatus.rotation);
+      }
+
+      const result = await extractData(base64, activeTemplate.fields, 'image/png', settings, signal);
       updateFileStatus(id, { status: 'completed', result });
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -173,6 +193,65 @@ const App: React.FC = () => {
     addTemplate(template);
   };
 
+  const handleSaveProject = () => {
+    exportProject(files, activeTemplate, activeTemplateId, projectName);
+    setProjectNotification(t.projectSaved);
+    setTimeout(() => setProjectNotification(null), 3000);
+  };
+
+  const handleLoadProject = () => {
+    projectInputRef.current?.click();
+  };
+
+  const handleProjectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    try {
+      const text = await file.text();
+      const project = importProject(text);
+
+      // Restore template
+      const templateExists = templates.some(t => t.id === project.template.id);
+      if (!templateExists) {
+        addTemplate(project.template);
+      }
+      selectTemplate(project.activeTemplateId || project.template.id);
+
+      // Restore project name
+      if (project.name) setProjectName(project.name);
+
+      // Create cards for ALL project files immediately
+      const projectFiles: FileStatus[] = project.files.map(entry => {
+        const dummyFile = new File([''], entry.fileName, { type: 'application/octet-stream' });
+        return {
+          id: Math.random().toString(36).substr(2, 9),
+          file: dummyFile,
+          previewUrl: '',
+          rotation: 0,
+          status: (entry.result ? 'completed' : 'pending') as 'pending' | 'completed',
+          result: entry.result,
+          sha256: entry.sha256,
+          verified: entry.verified || false,
+          imageMissing: true,
+        };
+      });
+
+      setFiles(projectFiles);
+      setCurrentView('dashboard');
+      setProjectNotification(
+        projectFiles.length > 0
+          ? (language === 'ru' ? `Загружено ${projectFiles.length} файлов. Перетащите оригиналы для заполнения изображений.` : `Loaded ${projectFiles.length} files. Drag originals to fill images.`)
+          : t.projectLoaded
+      );
+    } catch (err: any) {
+      console.error('Failed to load project:', err);
+      setProjectNotification(err.message || 'Failed to load project');
+    }
+    setTimeout(() => setProjectNotification(null), 5000);
+  };
+
   const handleCreateTemplate = () => {
     const newTemplate: Template = {
       id: Math.random().toString(36).substr(2, 9),
@@ -192,28 +271,44 @@ const App: React.FC = () => {
         currentLanguage={language}
         onLanguageToggle={toggleLanguage}
         translations={t}
+        onSaveProject={handleSaveProject}
+        onLoadProject={handleLoadProject}
+        projectName={projectName}
+        onProjectNameChange={setProjectName}
       />
 
       <main className="flex-1 container mx-auto p-4 md:p-8 flex flex-col">
         {currentView === 'dashboard' ? (
           <div className="flex-1 flex flex-col space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-xl border border-slate-200 gap-4 sticky top-[60px] md:top-[70px] z-30 shadow-md">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className="px-3 py-1 bg-slate-100 rounded-full text-slate-600 text-xs font-bold uppercase tracking-wider">
                   {files.length} {t.files}
                 </div>
-                <div className="hidden sm:flex text-xs text-slate-400 font-medium items-center gap-2">
-                  {t.activePattern}: 
-                  <select 
-                    value={activeTemplateId}
-                    onChange={(e) => selectTemplate(e.target.value)}
-                    className="bg-slate-50 border-none rounded px-2 py-0.5 text-slate-600 font-bold focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
-                  >
-                    {templates.map(tmpl => (
-                      <option key={tmpl.id} value={tmpl.id}>{tmpl.name}</option>
-                    ))}
-                  </select>
-                </div>
+                {files.length > 0 && (
+                  <div className="px-3 py-1 bg-emerald-50 rounded-full text-emerald-600 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="white" strokeWidth="0.5">
+                      <path d="M12 2l7 4v5c0 5.25-3.5 9.74-7 11-3.5-1.26-7-5.75-7-11V6l7-4z"/>
+                      <polyline points="9 12.5 11 14.5 15.5 9.5" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    {files.filter(f => f.verified).length}/{files.length} {t.ofVerified}
+                  </div>
+                )}
+                {conversionProgress && (
+                  <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 rounded-full">
+                    <div className="relative w-5 h-5">
+                      <svg className="w-5 h-5 -rotate-90" viewBox="0 0 20 20">
+                        <circle cx="10" cy="10" r="8" fill="none" stroke="#e2e8f0" strokeWidth="2.5"/>
+                        <circle cx="10" cy="10" r="8" fill="none" stroke="#3b82f6" strokeWidth="2.5"
+                          strokeDasharray={`${(conversionProgress.current / conversionProgress.total) * 50.26} 50.26`}
+                          strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <span className="text-blue-600 text-xs font-bold">
+                      {t.converting} {Math.round((conversionProgress.current / conversionProgress.total) * 100)}%
+                    </span>
+                  </div>
+                )}
                 <div className="hidden sm:flex text-xs text-slate-400 font-medium items-center gap-2">
                   {t.imageSize}:
                   <select
@@ -226,12 +321,24 @@ const App: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                <div className="hidden sm:flex text-xs text-slate-400 font-medium items-center gap-2">
+                  {t.activePattern}:
+                  <select
+                    value={activeTemplateId}
+                    onChange={(e) => selectTemplate(e.target.value)}
+                    className="bg-slate-50 border-none rounded px-2 py-0.5 text-slate-600 font-bold focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer"
+                  >
+                    {templates.map(tmpl => (
+                      <option key={tmpl.id} value={tmpl.id}>{tmpl.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2 w-full sm:w-auto">
                 <input type="file" multiple ref={fileInputRef} onChange={handleFileChange} className="hidden" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,image/*" />
                 <button onClick={() => fileInputRef.current?.click()} className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-200 transition text-sm">
                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                   <span className="hidden sm:inline">{language === 'ru' ? 'Добавить' : 'Add'}</span>
+                   <span className="hidden md:inline">{language === 'ru' ? 'Добавить' : 'Add'}</span>
                 </button>
                 <button 
                   onClick={isProcessing ? cancelProcessing : processAll}
@@ -243,7 +350,7 @@ const App: React.FC = () => {
                   ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
                   )}
-                  {isProcessing ? t.cancelExtraction : (allCompleted ? t.rerunAll : t.startExtraction)}
+                  <span className="hidden md:inline">{isProcessing ? t.cancelExtraction : (allCompleted ? t.rerunAll : t.startExtraction)}</span>
                 </button>
                 {files.some(f => f.status === 'completed') && (
                   <>
@@ -291,6 +398,8 @@ const App: React.FC = () => {
                       onRemove={removeFile}
                       onPreview={() => setPreviewIndex(idx)}
                       onUpdateResult={(id, result) => updateFileStatus(id, { result })}
+                      onToggleVerification={toggleVerification}
+                      onRotate={(id, degrees) => updateFileStatus(id, { rotation: degrees })}
                       translations={t}
                     />
                   ))}
@@ -351,8 +460,26 @@ const App: React.FC = () => {
           onClose={() => setPreviewIndex(null)}
           onNavigate={setPreviewIndex}
           onUpdateResult={(id, result) => updateFileStatus(id, { result })}
+          onToggleVerification={toggleVerification}
+          onRotate={(id, degrees) => updateFileStatus(id, { rotation: degrees })}
           translations={t}
         />
+      )}
+
+      {/* Hidden input for project file */}
+      <input
+        type="file"
+        ref={projectInputRef}
+        onChange={handleProjectFileChange}
+        className="hidden"
+        accept=".json"
+      />
+
+      {/* Project notification */}
+      {projectNotification && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-slate-800 text-white rounded-xl shadow-2xl text-sm font-medium animate-bounce">
+          {projectNotification}
+        </div>
       )}
 
       {confirmClearAll && (

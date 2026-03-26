@@ -10,6 +10,8 @@ interface DrawingCardProps {
   onRemove: (id: string) => void;
   onPreview: (fileStatus: FileStatus) => void;
   onUpdateResult?: (id: string, result: any) => void;
+  onToggleVerification?: (id: string) => void;
+  onRotate?: (id: string, degrees: number) => void;
   translations: any;
 }
 
@@ -21,6 +23,8 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
   onRemove,
   onPreview,
   onUpdateResult,
+  onToggleVerification,
+  onRotate,
   translations: t,
 }) => {
   const [localResult, setLocalResult] = useState<any>(fileStatus.result || {});
@@ -98,7 +102,23 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
       <div className="w-full lg:w-[45%] xl:w-[40%] bg-slate-50 flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-slate-200 relative shrink-0 h-[220px] sm:h-[280px] lg:h-full">
         {hasPreview ? (
           <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-white border border-slate-100 shadow-sm cursor-pointer" onClick={() => onPreview(fileStatus)}>
-            <img src={fileStatus.previewUrl} alt={fileStatus.file.name} className="max-w-full max-h-full object-contain" />
+            <img src={fileStatus.previewUrl} alt={fileStatus.file.name} className="max-w-full max-h-full object-contain" style={{ transform: `rotate(${fileStatus.rotation}deg)` }} />
+            <div className="absolute bottom-2 left-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition z-10">
+              <button
+                onClick={(e) => { e.stopPropagation(); onRotate?.(fileStatus.id, (fileStatus.rotation - 90 + 360) % 360); }}
+                className="p-1.5 bg-black/40 hover:bg-black/60 text-white rounded-full transition"
+                title={language === 'ru' ? 'Повернуть влево' : 'Rotate left'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onRotate?.(fileStatus.id, (fileStatus.rotation + 90) % 360); }}
+                className="p-1.5 bg-black/40 hover:bg-black/60 text-white rounded-full transition"
+                title={language === 'ru' ? 'Повернуть вправо' : 'Rotate right'}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+              </button>
+            </div>
             <button 
               onClick={(e) => { e.stopPropagation(); onRemove(fileStatus.id); }} 
               className="absolute top-2 right-2 p-2 bg-red-500/90 text-white rounded-full lg:opacity-0 lg:group-hover:opacity-100 transition shadow-lg hover:bg-red-600 z-10"
@@ -107,6 +127,27 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
             </button>
             <div className="absolute bottom-2 right-2 p-1.5 bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </div>
+          </div>
+        ) : fileStatus.imageMissing ? (
+          <div className="relative group w-full h-full flex items-center justify-center overflow-hidden rounded bg-amber-50 border-2 border-dashed border-amber-200">
+            <button 
+              onClick={() => onRemove(fileStatus.id)} 
+              className="absolute top-2 right-2 p-2 bg-red-500/90 text-white rounded-full lg:opacity-0 lg:group-hover:opacity-100 transition shadow-lg hover:bg-red-600 z-10"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div className="flex flex-col items-center gap-3 text-amber-500 p-4 text-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <div>
+                <span className="text-xs font-bold text-amber-700 block">{language === 'ru' ? 'Изображение не загружено' : 'Image not loaded'}</span>
+                <span className="text-[10px] text-amber-500 mt-1 block truncate max-w-[200px]">{fileStatus.file.name}</span>
+              </div>
+              <span className="text-[10px] text-amber-400">{language === 'ru' ? 'Перетащите файл для заполнения' : 'Drop file to fill'}</span>
             </div>
           </div>
         ) : (
@@ -136,6 +177,25 @@ const DrawingCard: React.FC<DrawingCardProps> = ({
               <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${fileStatus.status === 'completed' ? 'bg-green-100 text-green-700' : fileStatus.status === 'processing' ? 'bg-blue-100 text-blue-700 animate-pulse' : fileStatus.status === 'error' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}>
                 {fileStatus.status === 'pending' ? t.pending : fileStatus.status === 'processing' ? t.working : fileStatus.status === 'completed' ? t.yes : t.extractionFailed}
               </span>
+              {onToggleVerification && (
+                <button
+                  onClick={() => onToggleVerification(fileStatus.id)}
+                  className={`transition flex items-center gap-1.5 px-1.5 py-0.5 rounded ${fileStatus.verified ? 'text-emerald-600 hover:text-emerald-700 bg-emerald-50' : 'text-slate-400 hover:text-slate-500'}`}
+                  title={fileStatus.verified ? t.verified : t.notVerified}
+                >
+                  {fileStatus.verified ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="white" strokeWidth="0.5">
+                      <path d="M12 2l7 4v5c0 5.25-3.5 9.74-7 11-3.5-1.26-7-5.75-7-11V6l7-4z"/>
+                      <polyline points="9 12.5 11 14.5 15.5 9.5" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2l7 4v5c0 5.25-3.5 9.74-7 11-3.5-1.26-7-5.75-7-11V6l7-4z"/>
+                    </svg>
+                  )}
+                  <span className="text-[10px] font-bold uppercase">{fileStatus.verified ? t.verified : t.notVerified}</span>
+                </button>
+              )}
             </div>
           </div>
           <div className="flex gap-2 w-full sm:w-auto justify-end">

@@ -28,10 +28,31 @@ export interface FileStatus {
   file: File;
   previewUrl: string;
   imageForModel?: string;
+  rotation: number;
   status: 'pending' | 'processing' | 'completed' | 'error';
   result?: any;
   error?: string;
   sha256?: string;
+  verified?: boolean;
+  imageMissing?: boolean;
+}
+
+export interface ProjectFileEntry {
+  fileName: string;
+  path: string;
+  sha256: string;
+  result?: any;
+  verified?: boolean;
+}
+
+export interface Project {
+  version: string;
+  name: string;
+  template: Template;
+  activeTemplateId: string;
+  files: ProjectFileEntry[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type View = 'dashboard' | 'templates' | 'settings';
